@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input'
 import { useRouter } from 'next/navigation'
 import io from "socket.io-client"
 import { Card } from '@/components/ui/card'
-import { ArrowRight, Send } from 'lucide-react'
+import { Send } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import ReactMarkdown from 'react-markdown'
 
 // Socket connection
 const socket = io("http://localhost:3001", {
@@ -36,7 +38,7 @@ export default function CollaboratePage() {
   }
 
   // Send a message
-  const sendMessage = (e) => {
+  const sendMessage = (e : any) => {
     e.preventDefault()
     if (!message.trim()) return
     
@@ -71,14 +73,6 @@ export default function CollaboratePage() {
       setMessages((prev) => [...prev, data])
     })
 
-    socket.on("chat message", (data) => {
-      console.log("Chat message received:", data)
-      setMessages((prev) => [...prev, { 
-        sender: data.sender || 'AI', 
-        message: data.message || data.content || 'No message content'
-      }])
-    })
-
     socket.on("userJoined", (msg) => {
       setMessages((prev) => [...prev, { sender: "System", message: msg }])
     })
@@ -91,14 +85,49 @@ export default function CollaboratePage() {
       socket.off("connect")
       socket.off("connect_error")
       socket.off("receiveMessage")
-      socket.off("chat message")
       socket.off("userJoined")
       socket.off("userLeft")
     }
   }, [])
 
+  // Function to render message with markdown for AI responses
+  const renderMessage = (msg, index) => {
+    const isAI = msg.sender === "Cogni";
+    const isSystem = msg.sender === "System";
+    
+    return (
+      <div 
+        key={index} 
+        className={`mb-4 ${isSystem ? 'text-center text-gray-500 text-sm' : 
+          isAI ? 'flex flex-row' : 'flex flex-row-reverse'}`}
+      >
+        {!isSystem && (
+          <div className={`flex flex-col max-w-[75%] ${isAI ? 'mr-auto' : 'ml-auto'}`}>
+            <div className="flex items-center mb-1">
+              <Avatar className={`h-6 w-6 ${isAI ? 'mr-2' : 'ml-2 order-2'}`}>
+                <AvatarFallback>{isAI ? 'AI' : msg.sender[0]}</AvatarFallback>
+              </Avatar>
+              <span className={`text-sm ${isAI ? '' : 'order-1 mr-2'}`}>{msg.sender}</span>
+            </div>
+            <div className={`rounded-lg p-3 ${isAI ? 'bg-gray-700 text-white' : 'bg-muted'}`}>
+              {isAI ? (
+                <ReactMarkdown className="prose prose-sm prose-invert">
+                  {msg.message}
+                </ReactMarkdown>
+              ) : (
+                <p>{msg.message}</p>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {isSystem && <div className="w-full">{msg.message}</div>}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <div className="flex flex-col items-center min-h-screen p-4 pt-16">
       <h1 className="text-2xl font-bold mb-6">Collaborative Chat</h1>
       
       {!joined ? (
@@ -120,88 +149,49 @@ export default function CollaboratePage() {
               className="w-full"
             />
             <Button 
-              onClick={joinRoom} 
+              onClick={joinRoom}
               className="w-full"
-              disabled={!roomId || !username}
             >
               Join Room
             </Button>
           </div>
         </Card>
       ) : (
-        <div className="w-full max-w-4xl h-[70vh] border rounded-lg flex flex-col">
-          <div className="p-3 border-b flex justify-between items-center">
-            <h2 className="font-medium">Room: {roomId}</h2>
+        <div className="w-full max-w-4xl flex flex-col h-[80vh]">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Room: {roomId}</h2>
             <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => router.push('/')}
+              variant="outline" 
+              onClick={() => {
+                socket.disconnect()
+                setJoined(false)
+                setMessages([])
+              }}
             >
-              Exit
+              Leave Room
             </Button>
           </div>
           
           <div 
-            className="flex-1 overflow-y-auto p-4 space-y-3"
             ref={messageBoxRef}
+            className="flex-1 overflow-y-auto p-4 border rounded-lg mb-4"
           >
-            {messages.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No messages yet. Start the conversation!
-              </p>
-            ) : (
-              messages.map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={`p-3 rounded-lg max-w-[80%] ${
-                    msg.sender === username 
-                      ? 'ml-auto bg-primary text-primary-foreground' 
-                      : msg.sender === 'System'
-                        ? 'mx-auto bg-muted text-muted-foreground text-sm italic'
-                        : 'bg-secondary'
-                  }`}
-                >
-                  <div className="font-semibold text-sm mb-1">{msg.sender}</div>
-                  <div>{msg.message}</div>
-                </div>
-              ))
-            )}
+            {messages.map((msg, index) => renderMessage(msg, index))}
           </div>
           
-          <form onSubmit={sendMessage} className="border-t p-3 flex gap-2">
+          <form onSubmit={sendMessage} className="flex gap-2">
             <Input
               type="text"
-              placeholder="Type a message..."
+              placeholder="Type your message..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="flex-1"
             />
-            <Button type="submit" disabled={!message.trim()}>
-              <Send size={18} className="mr-2" />
-              Send
+            <Button type="submit">
+              <Send className="h-4 w-4" />
             </Button>
           </form>
         </div>
-      )}
-      
-      {joined && (
-        <Button 
-          variant="outline"
-          className="mt-4"
-          onClick={() => setJoined(false)}
-        >
-          Leave Room
-        </Button>
-      )}
-      
-      {!joined && (
-        <Button 
-          variant="outline"
-          className="mt-4"
-          onClick={() => router.push('/')}
-        >
-          Back to Home
-        </Button>
       )}
     </div>
   )
