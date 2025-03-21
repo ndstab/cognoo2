@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import { useUIState, useAIState } from 'ai/rsc'
 import type { AI } from '@/app/action'
 import { Button } from './ui/button'
-import { Search, History, User, Settings, MessageSquare } from 'lucide-react'
+import { Search, History, User, Settings, MessageSquare, Users, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { UserProfile } from './user-profile'
 
 export function ChatSidebar() {
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [userProfileOpen, setUserProfileOpen] = useState(false)
   const [messages] = useUIState<typeof AI>()
   interface Conversation {
   id: number
@@ -54,8 +56,18 @@ const [conversations, setConversations] = useState<Conversation[]>([])
         >
           <History size={20} />
         </Button>
-        <Button variant="ghost" size="icon">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setUserProfileOpen(!userProfileOpen)}
+        >
           <User size={20} />
+        </Button>
+        <Button variant="ghost" size="icon">
+          <Users size={20} />
+        </Button>
+        <Button variant="ghost" size="icon">
+          <Globe size={20} />
         </Button>
         <Button variant="ghost" size="icon">
           <Settings size={20} />
@@ -67,6 +79,8 @@ const [conversations, setConversations] = useState<Conversation[]>([])
           'fixed left-16 top-0 h-full bg-background border-r transition-all duration-300 z-20',
           historyOpen ? 'w-64' : 'w-0 border-0'
         )}
+      >
+        {userProfileOpen && <UserProfile />}
       >
         <div className="p-4 overflow-y-auto h-full">
           {conversations.map((conv: any) => (

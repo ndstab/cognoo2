@@ -25,7 +25,7 @@ export default function CollaboratePage() {
   const [username, setUsername] = useState("")
   const [joined, setJoined] = useState(false)
   const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState([])
+  const [messages, setMessages] = useState<Array<{ sender: string; message: string }>>([])
   const messageBoxRef = useRef(null)
 
   // Join a chat room
@@ -39,7 +39,7 @@ export default function CollaboratePage() {
   }
 
   // Send a message
-  const sendMessage = (e : any) => {
+  const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!message.trim()) return
     
@@ -92,7 +92,7 @@ export default function CollaboratePage() {
   }, [])
 
   // Function to render message with markdown for AI responses
-  const renderMessage = (msg, index) => {
+  const renderMessage = (msg: { sender: string; message: string }, index: number) => {
     const isAI = msg.sender === "Cogni";
     const isSystem = msg.sender === "System";
     
@@ -110,19 +110,46 @@ export default function CollaboratePage() {
               </Avatar>
               <span className={`text-sm ${isAI ? '' : 'order-1 mr-2'}`}>{msg.sender}</span>
             </div>
-            <div className={`rounded-lg p-3 ${isAI ? 'bg-gray-700 text-white' : 'bg-muted'}`}>
+            <div className={`rounded-lg p-3 ${isAI ? 'bg-gray-700 text-white' : 'bg-muted'} overflow-hidden`}>
               {isAI ? (
-                <ReactMarkdown className="prose prose-sm prose-invert">
+                <ReactMarkdown 
+                  className="prose prose-sm prose-invert max-w-none"
+                  components={{
+                    pre: ({node, ...props}) => (
+                      <pre {...props} className="p-2 rounded-md bg-gray-800 overflow-x-auto" />
+                    ),
+                    img: ({node, ...props}) => (
+                      <div className="my-4 flex justify-center">
+                        <img
+                          {...props}
+                          className="max-w-full h-auto rounded-lg shadow-lg"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      </div>
+                    ),
+                    p: ({node, ...props}) => (
+                      <p {...props} className="mb-2 last:mb-0" />
+                    ),
+                    code: ({node, inline, ...props}) => (
+                      inline ? 
+                        <code {...props} className="px-1 py-0.5 rounded-sm bg-gray-800" /> :
+                        <code {...props} className="block p-2 rounded-md bg-gray-800 overflow-x-auto" />
+                    )
+                  }}
+                >
                   {msg.message}
                 </ReactMarkdown>
               ) : (
-                <p>{msg.message}</p>
+                <p className="whitespace-pre-wrap break-words">{msg.message}</p>
               )}
             </div>
           </div>
         )}
         
-        {isSystem && <div className="w-full">{msg.message}</div>}
+        {isSystem && <div className="w-full text-gray-500 italic">{msg.message}</div>}
       </div>
     );
   };
