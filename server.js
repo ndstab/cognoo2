@@ -1,9 +1,11 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const { OpenAI } = require("openai");
-const axios = require("axios");
-require("dotenv").config();
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const { OpenAI } = require('openai');
+const axios = require('axios');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
@@ -12,6 +14,12 @@ const io = new Server(server, {
     origin: "*",
     methods: ["GET", "POST"],
   },
+});
+
+const PORT = process.env.PORT || 3001;
+
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
 
 // Initialize OpenAI
@@ -23,29 +31,159 @@ const openai = new OpenAI({
 const rooms = {};
 const roomMessages = {};
 
+// Socket.io event handlers
+io.on('connection', (socket) => {
+  console.log('New client connected');
+
+  socket.on('join_room', (roomId, username) => {
+    socket.join(roomId);
+    if (!rooms[roomId]) {
+      rooms[roomId] = new Set();
+      roomMessages[roomId] = [];
+    }
+    rooms[roomId].add(username);
+    
+    // Notify room about new user
+    io.to(roomId).emit('user_joined', {
+      username,
+      users: Array.from(rooms[roomId])
+    });
+  });
+
+  socket.on('leave_room', (roomId, username) => {
+    socket.leave(roomId);
+    if (rooms[roomId]) {
+      rooms[roomId].delete(username);
+      if (rooms[roomId].size === 0) {
+        delete rooms[roomId];
+        delete roomMessages[roomId];
+      } else {
+        io.to(roomId).emit('user_left', {
+          username,
+          users: Array.from(rooms[roomId])
+        });
+      }
+    }
+  });
+
+  socket.on('send_message', async (data) => {
+    const { roomId, message, sender } = data;
+    
+    // Store message in room history
+    if (!roomMessages[roomId]) roomMessages[roomId] = [];
+    roomMessages[roomId].push({ sender, message, timestamp: Date.now() });
+    
+    // Broadcast message to room
+    io.to(roomId).emit('receive_message', {
+      sender,
+      message,
+      timestamp: Date.now()
+    });
+
+    // Check if AI should respond
+    try {
+      if (await shouldAIRespond(message, roomId)) {
+        io.to(roomId).emit('ai_typing', true);
+        
+        try {
+          const taskDecision = await taskManager(message, roomId);
+          let aiResponse;
+          
+          if (taskDecision.object.next === 'search') {
+            aiResponse = await generateWithSearch(message, roomId);
+          } else {
+            // Get recent chat history for context
+            const recentMessages = roomMessages[roomId]
+              ? roomMessages[roomId].slice(-3).map(m => `${m.sender}: ${m.message}`).join('\n')
+              : '';
+            
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-3.5-turbo',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are Cogni, a helpful AI assistant in a group chat. Provide engaging and informative responses that encourage discussion. Consider the chat history and group context in your responses.'
+                },
+                {
+                  role: 'user',
+                  content: `Chat history:\n${recentMessages}\n\nCurrent message: ${message}`
+                }
+              ],
+              temperature: 0.7,
+              max_tokens: 500
+            });
+            aiResponse = completion.choices[0].message.content;
+          }
+          
+          io.to(roomId).emit('receive_message', {
+            sender: 'Cogni',
+            message: aiResponse,
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.error('Error generating AI response:', error);
+          io.to(roomId).emit('receive_message', {
+            sender: 'Cogni',
+            message: 'I apologize, but I encountered an error while processing your message. Could you please try again?',
+            timestamp: Date.now()
+          });
+        }
+        
+        io.to(roomId).emit('ai_typing', false);
+      }
+    } catch (error) {
+      console.error('Error in message processing:', error);
+      io.to(roomId).emit('ai_typing', false);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
+});
+
 // Function to check if AI should respond
 async function shouldAIRespond(message, roomId) {
   try {
+    // Basic checks first
+    const lowerMessage = message.toLowerCase();
+    if (lowerMessage.includes('cogni') || 
+        lowerMessage.endsWith('?') || 
+        /^(what|who|when|where|why|how|can|could|would|will|should|is|are|do|does|did)/i.test(lowerMessage)) {
+      return true;
+    }
+
+    // Get recent chat history for context
+    const recentMessages = roomMessages[roomId]
+      ? roomMessages[roomId].slice(-3)
+      : [];
+
+    // If this is the first message in the room, respond
+    if (recentMessages.length === 0) return true;
+
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: "You are Cogni, a decision maker. Analyze the following message and respond with 'true' if it requires an AI response (like questions, requests for help, or direct queries) or 'false' if it's casual conversation between users. Only respond with 'true' or 'false'. If the user is directly addressing some other user (you can decide this, on the basis of if there are any names present in the query provided), respond with 'false'. If the user is directly addressing to you (as Cogni), YOU HAVE TO RESPOND AT ALL COSTS."
+          content: "You are an AI response analyzer. Your task is to determine if a message requires an AI response. Respond ONLY with 'true' or 'false'. Respond with 'true' if the message is a question, request for help, mentions AI, or seeks information/advice. Respond with 'false' for casual conversation or statements."
         },
         {
           role: "user",
-          content: `Chat history:\n${roomMessages[roomId].slice(-5).map(m => `${m.sender}: ${m.message}`).join('\n')}\n\nCurrent message: ${message}`
+          content: message
         }
       ],
-      max_tokens: 40
+      temperature: 0.3,
+      max_tokens: 5
     });
     
-    const decision = completion.choices[0].message.content.toLowerCase().includes('true');
-    return decision;
+    const response = completion.choices[0].message.content.toLowerCase().trim();
+    console.log(`AI Response Decision for '${message}': ${response}`);
+    return response === 'true';
   } catch (error) {
     console.error('Error in AI decision:', error);
-    return false;
+    // Default to responding if there's an error
+    return true;
   }
 }
 
@@ -53,7 +191,7 @@ async function shouldAIRespond(message, roomId) {
 async function taskManager(message, roomId) {
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
@@ -81,58 +219,41 @@ async function taskManager(message, roomId) {
 // Web Search using Tavily
 async function searchWeb(query) {
   try {
-    // Make request to Tavily API
-    const response = await axios.post(
-      'https://api.tavily.com/search',
-      {
-        query: query,
-        search_depth: "basic",
-        include_domains: [],
-        exclude_domains: [],
-        max_results: 5
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`
-        }
-      }
-    );
+    console.log('Searching with Tavily API for:', query);
     
-    // Extract search results
-    const results = response.data.results || [];
-    const formattedResults = results.map(r => ({
-      title: r.title,
-      content: r.content,
-      url: r.url
-    }));
-    
-    return formattedResults;
-  } catch (error) {
-    console.error('Error searching web:', error);
-    return [];
-  }
-}
+    const response = await axios.post('https://api.tavily.com/search', {
+      api_key: process.env.TAVILY_API_KEY,
+      query: query,
+      max_results: 5,  // Increase for more results
+      search_depth: 'advanced',  // Use advanced for better results
+      include_images: true,
+      include_answer: true,
+      include_raw_content: false
+    });
 
-// Format message for Cogni-style response
-function formatCogniMessage(content, isSearching = false) {
-  if (isSearching) {
-    return {
-      id: Date.now(),
-      role: "assistant",
-      content: "Searching for information...",
-      createdAt: new Date().toISOString(),
-      isLoading: true
-    };
+    console.log('Tavily API response status:', response.status);
+    
+    if (!response.data || !response.data.results) {
+      console.error('No results in Tavily response:', response.data);
+      throw new Error('No search results found');
+    }
+    
+    // Log the first result to see if images are included
+    if (response.data.results.length > 0) {
+      console.log('First result image URL:', response.data.results[0].image);
+    }
+
+    return response.data.results.map(result => ({
+      title: result.title || 'No title',
+      content: result.content || 'No content',
+      url: result.url || '#',
+      image: result.image || null
+    }));
+  } catch (error) {
+    console.error('Error in web search:', error);
+    console.error('Error details:', error.response ? error.response.data : error.message);
+    throw error;
   }
-  
-  return {
-    id: Date.now(),
-    role: "assistant",
-    content: content,
-    createdAt: new Date().toISOString(),
-    isLoading: false
-  };
 }
 
 // Generate response with search results
@@ -142,67 +263,82 @@ async function generateWithSearch(message, roomId) {
     const searchResults = await searchWeb(message);
     
     // Get chat history for context
-    const recentMessages = roomMessages[roomId].slice(-5).map(m => 
-      `${m.sender}: ${m.message}`
-    ).join('\n');
+    const recentMessages = roomMessages[roomId]
+      ? roomMessages[roomId].slice(-5).map(m => `${m.sender}: ${m.message}`).join('\n')
+      : '';
     
-    // Format search results for the AI
-    const searchContext = searchResults.length > 0 
-      ? "Search results:\n" + searchResults.map(r => 
-          `Title: ${r.title}\nContent: ${r.content}\nURL: ${r.url}\n`
-        ).join('\n---\n')
-      : "No relevant search results found.";
+    // Format search results for the AI - include explicit instructions to format response
+    const sources = searchResults.map(r => `- [${r.title}](${r.url})`).join('\n');
+    const images = searchResults
+      .filter(r => r.image && r.image !== 'No image available' && r.image.startsWith('http'))
+      .map(r => `![${r.title}](${r.image})`)
+      .join('\n');
     
     // Generate response with search context
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: "You are Cogni, a helpful AI assistant. Use the search results to provide an accurate and helpful response. If the search results don't contain relevant information, use your knowledge to provide the best answer possible. Always cite sources when using information from search results. Format your response in markdown."
+          content: "You are Cogni, a helpful AI assistant in a group chat. Format your response in this exact order: 1) Sources section with links, 2) Images section with markdown image tags, 3) Your detailed answer. Always include all images provided in your response using markdown image syntax. Always cite sources when using information from search results."
         },
         {
           role: "user",
-          content: `Chat history:\n${recentMessages}\n\nUser question: ${message}\n\n${searchContext}`
+          content: `Chat history:\n${recentMessages}\n\nUser question: ${message}\n\nSources:\n${sources}\n\nImages:\n${images}`
         }
-      ]
+      ],
+      temperature: 0.7,
+      max_tokens: 800
     });
     
-    return completion.choices[0].message.content;
+    // Ensure images are included in the response
+    let aiResponse = completion.choices[0].message.content;
+    
+    // If the AI didn't include the images, add them manually
+    if (images && !aiResponse.includes('![')) {
+      aiResponse = `${images}\n\n${aiResponse}`;
+    }
+    
+    return aiResponse;
   } catch (error) {
     console.error('Error generating with search:', error);
-    return "I encountered an error while searching for information. Let me answer based on what I know.";
+    return "I encountered an error while searching for information. Let me try to answer based on what I know, or could you please rephrase your question?";
   }
 }
 
 // Direct response without search
 async function generateDirectResponse(message, roomId) {
   try {
-    // Get last 10 messages for context
-    const recentMessages = roomMessages[roomId].slice(-10).map(m => ({
-      role: m.sender === "Cogni" ? "assistant" : "user",
-      content: `${m.sender}: ${m.message}`
-    }));
+    // Get recent messages for context, ensuring we have the latest conversation flow
+    const recentMessages = roomMessages[roomId]
+      ? roomMessages[roomId].slice(-5).map(m => ({
+          role: m.sender.toLowerCase() === 'cogni' ? 'assistant' : 'user',
+          content: m.message
+        }))
+      : [];
 
+    // Create the completion request with enhanced context
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: "You are Cogni, a helpful AI assistant in a chat room. Provide concise and relevant responses. Use the chat history for context. Format your response in markdown."
+          content: "You are Cogni, a helpful and engaging AI assistant. Provide clear, informative responses while maintaining a natural conversational flow. Format responses in markdown when appropriate."
         },
         ...recentMessages,
         {
           role: "user",
           content: message
         }
-      ]
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
     });
-    
+
     return completion.choices[0].message.content;
   } catch (error) {
-    console.error('Error getting direct response:', error);
-    return "Sorry, I couldn't process that request.";
+    console.error('Error generating direct response:', error);
+    return "I apologize, but I'm having trouble processing your request right now. Could you please try again?";
   }
 }
 
@@ -301,9 +437,4 @@ io.on("connection", (socket) => {
     }
     console.log(`User disconnected: ${socket.id}`);
   });
-});
-
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
