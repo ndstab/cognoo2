@@ -98,7 +98,7 @@ io.on('connection', (socket) => {
               : '';
             
             const completion = await openai.chat.completions.create({
-              model: 'gpt-3.5-turbo',
+              model: 'gpt-4o-mini',
               messages: [
                 {
                   role: 'system',
@@ -147,8 +147,7 @@ async function shouldAIRespond(message, roomId) {
   try {
     // Basic checks first
     const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('cogni') || 
-        lowerMessage.endsWith('?') || 
+    if (lowerMessage.includes('cogni') ||
         /^(what|who|when|where|why|how|can|could|would|will|should|is|are|do|does|did)/i.test(lowerMessage)) {
       return true;
     }

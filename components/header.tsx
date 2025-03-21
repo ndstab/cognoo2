@@ -20,12 +20,12 @@ export const Header: React.FC = () => {
         </a>
       </div>
       
-      <div className="flex flex-col items-center"> 
+      <div className="absolute left-1/2 transform -translate-x-1/2 flex flex-col items-center"> 
         <a href="/">
           <img 
-            src="/ani.gif" 
+            src="/cogni-logo.png" 
             alt="Cogni" 
-            className="h-12 w-auto mb-4"
+            className="h-20 w-auto mb-4"
           />
         </a>
       </div>
