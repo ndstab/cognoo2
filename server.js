@@ -224,30 +224,25 @@ async function searchWeb(query) {
     const response = await axios.post('https://api.tavily.com/search', {
       api_key: process.env.TAVILY_API_KEY,
       query: query,
-      max_results: 5,  // Increase for more results
-      search_depth: 'advanced',  // Use advanced for better results
+      max_results: 5,
+      search_depth: 'advanced',
       include_images: true,
       include_answer: true,
       include_raw_content: false
     });
 
-    console.log('Tavily API response status:', response.status);
+    console.log('Tavily API response:', response.data); // Log the full response
     
     if (!response.data || !response.data.results) {
       console.error('No results in Tavily response:', response.data);
       throw new Error('No search results found');
     }
     
-    // Log the first result to see if images are included
-    if (response.data.results.length > 0) {
-      console.log('First result image URL:', response.data.results[0].image);
-    }
-
     return response.data.results.map(result => ({
       title: result.title || 'No title',
       content: result.content || 'No content',
       url: result.url || '#',
-      image: result.image || null
+      image: result.image || 'No image available' // Fallback for missing images
     }));
   } catch (error) {
     console.error('Error in web search:', error);
