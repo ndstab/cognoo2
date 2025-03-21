@@ -5,7 +5,15 @@ import { cn } from '@/lib/utils'
 import { UserMessage } from './user-message'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
-import { ArrowRight, Plus, Square, Mic } from 'lucide-react'
+import { Plus, Square, Mic, ArrowRight } from 'lucide-react'
+
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition
+    webkitSpeechRecognition: typeof SpeechRecognition
+  }
+}
+import { MiniNetworkButton } from './mini-network-button'
 import { EmptyScreen } from './empty-screen'
 
 export function ChatPanel() {
@@ -147,14 +155,9 @@ export function ChatPanel() {
               >
                 <Mic size={20} />
               </Button>
-              <Button
-                type="submit"
-                size={"icon"}
-                variant={"ghost"}
+              <MiniNetworkButton
                 disabled={input.length === 0}
-              >
-                <ArrowRight size={20} />
-              </Button>
+              />
             </div>
           </div>
         </form>

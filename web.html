@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Network Visualization</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: radial-gradient(circle at center, #1a1a2e 0%, #16213e 50%, #0f172a 100%);
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4ade80;
+            font-family: 'Arial', sans-serif;
+            font-size: 24px;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        .loading-visible {
+            opacity: 1 !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">Loading...</div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+                "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+        // Show loading screen
+        const loading = document.getElementById('loading');
+        loading.classList.add('loading-visible');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+        scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+        // Enhanced lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight1 = new THREE.PointLight(0x4ade80, 1, 100);
+        pointLight1.position.set(10, 10, 10);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0x60a5fa, 1, 100);
+        pointLight2.position.set(-10, -10, -10);
+        scene.add(pointLight2);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 50;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 0.5;
+        controls.minDistance = 5;
+        controls.maxDistance = 1000; // Changed from 200 to 1000 for more zoom out
+        controls.zoomSpeed = 1.5;
+
+        const nodes = [];
+        const links = [];
+        const dataParticles = [];
+        const numNodes = 100;
+    
+        // Create nodes with enhanced materials in a perfect spherical arrangement using Fibonacci sphere method
+        const radius = 40; // Fixed radius for perfect sphere
+        const goldenRatio = (1 + Math.sqrt(5)) / 2;
+        
+        for (let i = 0; i < numNodes; i++) {
+            const theta = 2 * Math.PI * i / goldenRatio;
+            const phi = Math.acos(1 - 2 * (i + 0.5) / numNodes);
+            
+            const x = radius * Math.sin(phi) * Math.cos(theta);
+            const y = radius * Math.sin(phi) * Math.sin(theta);
+            const z = radius * Math.cos(phi);
+            
+            const geometry = new THREE.OctahedronGeometry(0.5, 0);
+            const material = new THREE.MeshPhongMaterial({
+                color: Math.random() < 0.33 ? 0x4ade80 : Math.random() < 0.5 ? 0x60a5fa : 0xc8ffc8,
+                emissive: Math.random() < 0.33 ? 0x4ade80 : Math.random() < 0.5 ? 0x60a5fa : 0xc8ffc8,
+                emissiveIntensity: 0.7,
+                shininess: 150,
+                transparent: true,
+                opacity: 0.9,
+                wireframe: true,
+                wireframeLinewidth: 1,
+                wireframeLinecap: 'round',
+                wireframeLineJoin: 'round',
+                wireframeColor: new THREE.Color(0x60a5fa)
+            });
+            const node = new THREE.Mesh(geometry, material);
+            node.position.set(x, y, z);
+            node.scale.set(1, 1, 1);
+            scene.add(node);
+            nodes.push(node);
+        }
+
+        // Create enhanced connections
+        const lineMaterial = new THREE.LineBasicMaterial({
+            color: 0x60a5fa,
+            transparent: true,
+            opacity: 0.3
+        });
+
+        for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+                if (Math.random() < 0.075) {
+                    const points = [nodes[i].position, nodes[j].position];
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const line = new THREE.Line(geometry, lineMaterial);
+                    scene.add(line);
+                    links.push({ line, from: nodes[i], to: nodes[j] });
+                }
+            }
+        }
+
+        // Enhanced particles
+        const particleMaterial = new THREE.MeshPhongMaterial({
+            color: 0xffffa0,
+            emissive: 0xffffa0,
+            emissiveIntensity: 0.8,
+            shininess: 150,
+            transparent: true,
+            opacity: 0.9
+        });
+        const particleGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+
+        links.forEach(link => {
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            particle.position.copy(link.from.position);
+            scene.add(particle);
+            dataParticles.push({
+                particle,
+                from: link.from.position,
+                to: link.to.position,
+                progress: Math.random(),
+                speed: (0.002 + Math.random() * 0.003) / 3
+            });
+        });
+
+        // Node pulsing animation
+        let pulseTime = 0;
+        function animateNodes() {
+            nodes.forEach((node) => {
+                // Set static scale and illumination
+                node.scale.set(1, 1, 1);
+                node.material.emissiveIntensity = 0.8;
+                // Use only white color
+                node.material.color.setHex(0xffffff);
+                node.material.emissive.setHex(0xffffff);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            // Add automatic rotation to the entire scene
+            scene.rotation.y += 0.001;
+            
+            // Animate particles with varying speeds
+            dataParticles.forEach(dp => {
+                dp.progress += dp.speed;
+                if (dp.progress > 1) dp.progress = 0;
+                dp.particle.position.lerpVectors(dp.from, dp.to, dp.progress);
+                // Smoother opacity transition using cosine interpolation
+                const smoothProgress = (1 - Math.cos(dp.progress * Math.PI * 2)) / 2;
+                dp.particle.material.opacity = 0.4 + smoothProgress * 0.6;
+            });
+
+            // Animate nodes
+            animateNodes();
+
+            // Rotate point lights
+            const time = Date.now() * 0.001;
+            pointLight1.position.x = Math.sin(time * 0.7) * 15;
+            pointLight1.position.z = Math.cos(time * 0.7) * 15;
+            pointLight2.position.x = Math.sin(time * 0.7 + Math.PI) * 15;
+            pointLight2.position.z = Math.cos(time * 0.7 + Math.PI) * 15;
+
+            renderer.render(scene, camera);
+        }
+
+        // Hide loading screen and start animation
+        window.addEventListener('load', () => {
+            loading.classList.remove('loading-visible');
+            animate();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

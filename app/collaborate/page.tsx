@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useRouter } from 'next/navigation'
 import io from "socket.io-client"
+import { BackgroundAnimation } from '@/components/background-animation'
 import { Card } from '@/components/ui/card'
 import { Send } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -127,8 +128,10 @@ export default function CollaboratePage() {
   };
 
   return (
-    <div className="flex flex-col items-center min-h-screen p-4 pt-16">
-      <h1 className="text-2xl font-bold mb-6">Collaborative Chat</h1>
+    <>
+      <BackgroundAnimation />
+      <div className="flex flex-col items-center min-h-screen p-4 pt-16">
+        <h1 className="text-2xl font-bold mb-6">Collaborative Chat</h1>
       
       {!joined ? (
         <Card className="w-full max-w-md p-6 space-y-4">
@@ -193,6 +196,7 @@ export default function CollaboratePage() {
           </form>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

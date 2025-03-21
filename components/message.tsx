@@ -15,8 +15,8 @@ export function BotMessage({
   if (error) return <div>Error</div>
 
   return (
-    <div className="flex items-center gap-2">
-      <MemoizedReactMarkdown className="prose-sm prose-neutral prose-a:text-accent-foreground/50">
+    <div className="flex items-center gap-2 w-full">
+      <MemoizedReactMarkdown className="prose-sm prose-neutral prose-a:text-accent-foreground/50 w-full">
         {data}
       </MemoizedReactMarkdown>
       <TextToSpeech text={data || ''} />
