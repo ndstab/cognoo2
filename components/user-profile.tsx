@@ -68,6 +68,24 @@ export function UserProfile() {
     }
   };
 
+  // Add a logout function
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    // If you're using next-auth
+    signOut()
+    // Redirect to login page
+    router.push('/auth')
+  }
+  
+  // Add a logout button to your UI
+  <Button 
+    onClick={handleLogout}
+    className="w-full mt-4"
+    variant="destructive"
+  >
+    Logout
+  </Button>
+
   return (
     <div className="fixed left-16 top-0 h-full bg-background border-r w-80 p-6 overflow-y-auto">
       <h2 className="text-2xl font-bold mb-6">User Profile</h2>
