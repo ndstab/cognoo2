@@ -5,7 +5,8 @@ const { OpenAI } = require('openai');
 const axios = require('axios');
 const dotenv = require('dotenv');
 
-dotenv.config();
+// At the very top of your server.js file
+require('dotenv').config({ path: '.env.local' });
 
 const app = express();
 const server = http.createServer(app);
