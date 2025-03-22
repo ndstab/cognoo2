@@ -7,19 +7,22 @@ import { Button } from './ui/button'
 import { Search, History, User, Settings, MessageSquare, Users, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserProfile } from './user-profile'
+import { UserSearch } from './user-search'
 
 export function ChatSidebar() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [userProfileOpen, setUserProfileOpen] = useState(false)
+  const [userSearchOpen, setUserSearchOpen] = useState(false)
   const [messages] = useUIState<typeof AI>()
+  
   interface Conversation {
-  id: number
-  messages: any[]
-  type: 'search' | 'chat'
-  timestamp: string
-}
+    id: number
+    messages: any[]
+    type: 'search' | 'chat'
+    timestamp: string
+  }
 
-const [conversations, setConversations] = useState<Conversation[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
 
   useEffect(() => {
     const storedHistory: Conversation[] = JSON.parse(localStorage.getItem('chatHistory') || '[]')
@@ -46,24 +49,47 @@ const [conversations, setConversations] = useState<Conversation[]>([])
     setConversations([...groupedConversations, ...storedHistory].sort((a, b) => b.id - a.id) as Conversation[])
   }, [messages])
 
+  // Handle sidebar button clicks
+  const handleUsersClick = () => {
+    setUserSearchOpen(!userSearchOpen)
+    setUserProfileOpen(false)
+    setHistoryOpen(false)
+  }
+
+  const handleHistoryClick = () => {
+    setHistoryOpen(!historyOpen)
+    setUserProfileOpen(false)
+    setUserSearchOpen(false)
+  }
+
+  const handleProfileClick = () => {
+    setUserProfileOpen(!userProfileOpen)
+    setHistoryOpen(false)
+    setUserSearchOpen(false)
+  }
+
   return (
     <div className="fixed left-0 top-0 h-full bg-background border-r z-20 w-16">
       <div className="flex flex-col items-center p-2 space-y-4 h-full">
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setHistoryOpen(!historyOpen)}
+          onClick={handleHistoryClick}
         >
           <History size={20} />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setUserProfileOpen(!userProfileOpen)}
+          onClick={handleProfileClick}
         >
           <User size={20} />
         </Button>
-        <Button variant="ghost" size="icon">
+        <Button 
+          variant="ghost" 
+          size="icon"
+          onClick={handleUsersClick}
+        >
           <Users size={20} />
         </Button>
         <Button variant="ghost" size="icon">
@@ -77,29 +103,31 @@ const [conversations, setConversations] = useState<Conversation[]>([])
       <div
         className={cn(
           'fixed left-16 top-0 h-full bg-background border-r transition-all duration-300 z-20',
-          historyOpen ? 'w-64' : 'w-0 border-0'
+          historyOpen || userProfileOpen || userSearchOpen ? 'w-80' : 'w-0 border-0'
         )}
       >
         {userProfileOpen && <UserProfile />}
-      >
-        <div className="p-4 overflow-y-auto h-full">
-          {conversations.map((conv: any) => (
-            <div
-              key={conv.id}
-              className="flex items-center space-x-2 p-2 rounded-lg hover:bg-muted cursor-pointer"
-            >
-              {conv.type === 'search' ? (
-                <Search size={16} className="text-muted-foreground" />
-              ) : (
-                <MessageSquare size={16} className="text-muted-foreground" />
-              )}
-              <div className="flex-1 truncate text-sm">
-                {conv.messages[0].component?.props?.message ||
-                  'Conversation ' + conv.timestamp}
+        {userSearchOpen && <UserSearch />}
+        {historyOpen && (
+          <div className="p-4 overflow-y-auto h-full">
+            {conversations.map((conv: any) => (
+              <div
+                key={conv.id}
+                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-muted cursor-pointer"
+              >
+                {conv.type === 'search' ? (
+                  <Search size={16} className="text-muted-foreground" />
+                ) : (
+                  <MessageSquare size={16} className="text-muted-foreground" />
+                )}
+                <div className="flex-1 truncate text-sm">
+                  {conv.messages[0].component?.props?.message ||
+                    'Conversation ' + conv.timestamp}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
