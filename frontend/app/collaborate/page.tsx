@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import ReactMarkdown from 'react-markdown'
 
 // Socket connection
-const socket = io("http://localhost:3001", {
+const socket = io("https://cogniwebsocket.centralindia.cloudapp.azure.com", {
   withCredentials: false,
   transports: ['websocket', 'polling'],
   reconnectionAttempts: 5,
