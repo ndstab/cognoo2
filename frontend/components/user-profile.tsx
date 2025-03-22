@@ -18,17 +18,25 @@ export function UserProfile() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
+  // Add safe localStorage access
+  const getLocalStorageItem = (key: string): string | null => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(key)
+    }
+    return null
+  }
+
   // Fetch user data from the database
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setLoading(true)
         // Get token from localStorage
-        const token = localStorage.getItem('token')
+        const token = getLocalStorageItem('token')
         
         if (!token) {
           // Check if there's a user object that might contain the token
-          const userStr = localStorage.getItem('user')
+          const userStr = getLocalStorageItem('user')
           if (userStr) {
             try {
               const user = JSON.parse(userStr)
@@ -99,7 +107,7 @@ export function UserProfile() {
       setMessage('')
       setError('')
       
-      const token = localStorage.getItem('token')
+      const token = getLocalStorageItem('token')
       if (!token) {
         setError('Not authenticated. Please log in.')
         return

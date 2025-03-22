@@ -70,12 +70,13 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-        token.email = user.email
-        if (user.token) {
-          token.accessToken = user.token
+    async jwt({ token, user, account }) {
+      // Initial sign in
+      if (account && user) {
+        return {
+          ...token,
+          id: user.id,
+          accessToken: user.token,
         }
       }
       return token
@@ -84,6 +85,12 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string
       }
+      
+      // Store user data in localStorage after successful session
+      if (typeof window !== 'undefined' && session.user) {
+        localStorage.setItem('user', JSON.stringify(session.user))
+      }
+      
       return session
     },
   },

@@ -42,11 +42,10 @@ export function LoginForm() {
         console.log('Login successful, redirecting to home...')
         // Store user in localStorage
         localStorage.setItem('user', JSON.stringify({ email }))
-        // Add a small delay before redirecting
-        setTimeout(() => {
-          router.push('/')
-          router.refresh()
-        }, 500)
+        
+        // Redirect immediately instead of setTimeout
+        router.push('/')
+        router.refresh()
       }
     } catch (err: any) {
       console.error('Login error:', err)
