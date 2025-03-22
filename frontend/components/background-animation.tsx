@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
 export function BackgroundAnimation() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -22,15 +21,7 @@ export function BackgroundAnimation() {
     renderer.setPixelRatio(window.devicePixelRatio)
     containerRef.current.appendChild(renderer.domElement)
 
-    const controls = new OrbitControls(camera, renderer.domElement)
-    controls.enableDamping = true
-    controls.dampingFactor = 0.05
-    controls.rotateSpeed = 0.5
-    controls.minDistance = 5
-    controls.maxDistance = 200
-    controls.zoomSpeed = 1.5
-
-    const stars = []
+    const stars: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>[] = []
     const numStars = 600
 
     // Create stars
@@ -89,7 +80,6 @@ export function BackgroundAnimation() {
         star.material.opacity = 0.95 + Math.sin(phase) * 0.05
       })
 
-      controls.update()
       renderer.render(scene, camera)
     }
 

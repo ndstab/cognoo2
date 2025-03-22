@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
 export function MiniNetworkButton({ disabled = false, onClick }: { disabled?: boolean; onClick?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -33,9 +32,6 @@ export function MiniNetworkButton({ disabled = false, onClick }: { disabled?: bo
     renderer.setSize(24, 24)
     renderer.setPixelRatio(window.devicePixelRatio)
     containerRef.current.appendChild(renderer.domElement)
-
-    const controls = new OrbitControls(camera, renderer.domElement)
-    controls.enabled = false
 
     const nodes: THREE.Mesh[] = []
     const links: { line: THREE.Line; from: THREE.Mesh; to: THREE.Mesh }[] = []
@@ -128,7 +124,8 @@ export function MiniNetworkButton({ disabled = false, onClick }: { disabled?: bo
         if (dp.progress > 1) dp.progress = 0
         dp.particle.position.lerpVectors(dp.from, dp.to, dp.progress)
         const smoothProgress = (1 - Math.cos(dp.progress * Math.PI * 2)) / 2
-        dp.particle.material.opacity = 0.4 + smoothProgress * 0.6
+        const material = dp.particle.material as THREE.MeshPhongMaterial;
+        material.opacity = 0.4 + smoothProgress * 0.6;
       })
 
       const time = Date.now() * 0.001

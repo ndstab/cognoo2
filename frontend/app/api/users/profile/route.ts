@@ -4,12 +4,13 @@ import connectDB from '@/config/db'
 import User from '@/models/User'
 
 // Secret key for JWT (Use env variables in production)
-const JWT_SECRET = process.env.JWT_SECRET 
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development'
 
 // Helper function to verify JWT token
 const verifyToken = (token: string) => {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: string, email: string }
+    const decoded = jwt.verify(token, JWT_SECRET)
+    return decoded as { id: string, email: string }
   } catch (error) {
     return null
   }
