@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import connectDB from '@/config/db'
 import User from '@/models/User'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     // Get the username query parameter

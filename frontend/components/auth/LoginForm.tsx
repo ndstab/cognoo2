@@ -24,21 +24,30 @@ export function LoginForm() {
         throw new Error('Please fill in all fields')
       }
 
+      console.log('Attempting to sign in with credentials...')
+      
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       })
 
+      console.log('Sign in result:', result)
+
       if (result?.error) {
         throw new Error(result.error || 'Login failed')
       }
 
       if (result?.ok) {
-        router.push('/')
-        router.refresh()
+        console.log('Login successful, redirecting to home...')
+        // Add a small delay before redirecting
+        setTimeout(() => {
+          router.push('/')
+          router.refresh()
+        }, 500)
       }
     } catch (err: any) {
+      console.error('Login error:', err)
       setError(err.message || 'Login failed')
     } finally {
       setLoading(false)
@@ -52,6 +61,7 @@ export function LoginForm() {
     try {
       await signIn('google', { callbackUrl: '/' })
     } catch (err: any) {
+      console.error('Google login error:', err)
       setError(err.message || 'An error occurred')
     } finally {
       setLoading(false)

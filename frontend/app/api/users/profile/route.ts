@@ -16,6 +16,8 @@ const verifyToken = (token: string) => {
   }
 }
 
+export const dynamic = 'force-dynamic';
+
 // GET handler to fetch user profile
 export async function GET(request: Request) {
   try {
