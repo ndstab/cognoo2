@@ -7,10 +7,40 @@ import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { Plus, Square, Mic, ArrowRight } from 'lucide-react'
 
+// Define SpeechRecognition interface
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  addEventListener(type: string, callback: EventListenerOrEventListenerObject): void;
+  removeEventListener(type: string, callback: EventListenerOrEventListenerObject): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onend: () => void;
+  onerror: (event: { error: string }) => void;
+}
+
+interface SpeechRecognitionResultItem {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionResultItem;
+  isFinal: boolean;
+  length: number;
+}
+
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResult[];
+  resultIndex: number;
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
   }
 }
 import { MiniNetworkButton } from './mini-network-button'

@@ -5,7 +5,7 @@ import connectDB from '@/config/db'
 import User from '@/models/User'
 
 // Secret key for JWT (Use env variables in production)
-const JWT_SECRET = process.env.JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development'
 
 export async function POST(request: Request) {
   // Ensure we always return JSON, even in case of errors

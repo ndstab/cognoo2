@@ -26,7 +26,7 @@ export default function CollaboratePage() {
   const [joined, setJoined] = useState(false)
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Array<{ sender: string; message: string }>>([])
-  const messageBoxRef = useRef(null)
+  const messageBoxRef = useRef<HTMLDivElement>(null)
 
   // Join a chat room
   const joinRoom = () => {
@@ -133,7 +133,7 @@ export default function CollaboratePage() {
                     p: ({node, ...props}) => (
                       <p {...props} className="mb-2 last:mb-0" />
                     ),
-                    code: ({node, inline, ...props}) => (
+                    code: ({node, inline, ...props}: {node?: any, inline?: boolean, [key: string]: any}) => (
                       inline ? 
                         <code {...props} className="px-1 py-0.5 rounded-sm bg-gray-800" /> :
                         <code {...props} className="block p-2 rounded-md bg-gray-800 overflow-x-auto" />

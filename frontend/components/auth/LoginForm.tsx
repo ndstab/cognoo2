@@ -24,22 +24,22 @@ export function LoginForm() {
         throw new Error('Please fill in all fields')
       }
 
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
       })
 
-      const data = await response.json()
+      if (result?.error) {
+        throw new Error(result.error || 'Login failed')
+      }
 
-      if (response.ok) {
-        localStorage.setItem('user', JSON.stringify(data.user))
+      if (result?.ok) {
         router.push('/')
-      } else {
-        setError(data.message || 'Login failed')
+        router.refresh()
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred')
+      setError(err.message || 'Login failed')
     } finally {
       setLoading(false)
     }
