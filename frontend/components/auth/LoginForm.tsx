@@ -40,6 +40,8 @@ export function LoginForm() {
 
       if (result?.ok) {
         console.log('Login successful, redirecting to home...')
+        // Store user in localStorage
+        localStorage.setItem('user', JSON.stringify({ email }))
         // Add a small delay before redirecting
         setTimeout(() => {
           router.push('/')

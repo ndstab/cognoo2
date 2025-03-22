@@ -6,6 +6,7 @@ import { Input } from './ui/input'
 import { Card } from './ui/card'
 import { Label } from './ui/label'
 import { useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 
 export function UserProfile() {
   const router = useRouter()
@@ -128,9 +129,7 @@ export function UserProfile() {
 
   // Add a logout function
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    // Redirect to login page
-    router.push('/auth')
+    signOut({ callbackUrl: '/auth' })
   }
 
   return (
