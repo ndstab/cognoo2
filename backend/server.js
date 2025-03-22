@@ -1,12 +1,19 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { OpenAI } = require('openai');
-const axios = require('axios');
 const dotenv = require('dotenv');
+const axios = require('axios');
+const cors = require('cors');
+const connectDB = require('./config/db');
 
-// At the very top of your server.js file
-require('dotenv').config({ path: '.env.local' });
+// Load environment variables - this should be at the top
+dotenv.config();
+
+// Initialize OpenAI after environment variables are loaded
+const { OpenAI } = require('openai');
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -21,11 +28,6 @@ const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-});
-
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Store active rooms & users and their message history
