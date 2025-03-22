@@ -11,9 +11,7 @@ dotenv.config();
 
 // Initialize OpenAI after environment variables are loaded
 const { OpenAI } = require('openai');
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI();
 
 const app = express();
 const server = http.createServer(app);
