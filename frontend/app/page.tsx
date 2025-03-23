@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { BackgroundAnimation } from '@/components/background-animation'
+import { Chat } from '@/components/chat'
 
 export default function Page() {
   const router = useRouter()
@@ -51,8 +52,8 @@ export default function Page() {
   return (
     <>
       <BackgroundAnimation />
-      <div className="flex items-center justify-center min-h-screen">
-        <h1 className="text-2xl font-bold">Welcome to Cogni</h1>
+      <div className="container mx-auto py-6">
+        <Chat />
       </div>
     </>
   )
