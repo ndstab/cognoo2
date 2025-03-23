@@ -115,3 +115,4 @@ The project is cleanly divided into two folders:
 
 - Azure Web App documentation: https://docs.microsoft.com/en-us/azure/app-service/
 - Vercel documentation: https://vercel.com/docs
+# Updated to stable version
