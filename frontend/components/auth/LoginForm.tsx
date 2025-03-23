@@ -26,26 +26,56 @@ export function LoginForm() {
 
       console.log('Attempting to sign in with credentials...')
       
+      // Make a direct API call to validate credentials and get token
+      const loginResponse = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      
+      const data = await loginResponse.json()
+      
+      // If credentials are invalid, throw error
+      if (!loginResponse.ok) {
+        console.error('Login API error:', data.message)
+        throw new Error(data.message || 'Invalid credentials')
+      }
+      
+      console.log('Login API response:', data)
+      
+      // Store token in localStorage
+      if (data.token) {
+        localStorage.setItem('token', data.token)
+        console.log('Token stored in localStorage')
+      } else {
+        throw new Error('No authentication token received')
+      }
+      
+      // Store full user object with all data
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user))
+        console.log('User data stored in localStorage')
+      } else {
+        throw new Error('No user data received')
+      }
+      
+      // Sign in with NextAuth (for session management)
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
       })
-
-      console.log('Sign in result:', result)
-
-      if (result?.error) {
-        throw new Error(result.error || 'Login failed')
-      }
-
+      
+      console.log('NextAuth sign in result:', result)
+      
       if (result?.ok) {
-        console.log('Login successful, redirecting to home...')
-        // Store user in localStorage
-        localStorage.setItem('user', JSON.stringify({ email }))
-        
-        // Redirect immediately instead of setTimeout
-        router.push('/')
-        router.refresh()
+        // Use router.replace instead of push to prevent history stacking
+        console.log('Login successful, navigating to homepage...')
+        router.replace('/')
+      } else {
+        // This should not happen if the API login was successful
+        console.error('NextAuth login failed after API login success')
+        throw new Error('Session creation failed')
       }
     } catch (err: any) {
       console.error('Login error:', err)

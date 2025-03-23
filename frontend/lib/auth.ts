@@ -13,6 +13,7 @@ declare module 'next-auth' {
   interface Session {
     user?: {
       id: string
+      token?: string
     } & DefaultSession['user']
   }
 }
@@ -84,11 +85,20 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
+        
+        // Add the token to the session user object
+        session.user.token = token.accessToken as string
       }
       
-      // Store user data in localStorage after successful session
+      // Store user data and token in localStorage after successful session
       if (typeof window !== 'undefined' && session.user) {
         localStorage.setItem('user', JSON.stringify(session.user))
+        
+        // Also store token separately for easier access by API interceptors
+        if (token.accessToken) {
+          localStorage.setItem('token', token.accessToken as string)
+          console.log("Token stored from auth callback:", token.accessToken)
+        }
       }
       
       return session

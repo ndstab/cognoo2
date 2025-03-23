@@ -14,17 +14,41 @@ export default function Page() {
 
   useEffect(() => {
     try {
+      console.log('Auth check - Session status:', status)
+      
       // Check authentication status
       if (status === 'loading') {
-        // Still checking
+        // Still checking session status
+        console.log('Session still loading...')
         return
       }
       
-      if (!session) {
-        router.push('/auth')
-      } else {
+      // First check if we have an active session
+      if (session) {
+        console.log('Active session found:', session)
         setIsAuthenticated(true)
+        return
       }
+      
+      console.log('No active session, checking localStorage...')
+      
+      // If no session, check localStorage for token as fallback
+      const token = localStorage.getItem('token')
+      const userStr = localStorage.getItem('user')
+      
+      console.log('localStorage token exists:', !!token)
+      console.log('localStorage user exists:', !!userStr)
+      
+      if (token && userStr) {
+        // We have saved authentication data
+        console.log('Using localStorage auth data')
+        setIsAuthenticated(true)
+        return
+      }
+      
+      // No valid authentication found, redirect to auth page
+      console.log('No authentication found, redirecting to auth page')
+      router.replace('/auth')
     } catch (err) {
       console.error("Authentication error:", err)
       setError("Failed to verify authentication")
