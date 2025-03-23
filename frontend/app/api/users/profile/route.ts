@@ -145,4 +145,3 @@ export async function PUT(request: Request) {
   }
 }
 
-export const dynamic = 'force-dynamic';

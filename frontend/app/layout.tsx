@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
 import Header from '@/components/header'
 import { Providers } from './providers'
+import { Analytics } from '@vercel/analytics/react'
 
 const fontSans = FontSans({
   subsets: ['latin'],
@@ -53,6 +54,7 @@ export default function RootLayout({
             </main>
           </ThemeProvider>
         </Providers>
+        <Analytics />
       </body>
     </html>
   )
