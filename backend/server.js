@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
 const axios = require('axios');
+const WebSocket = require('ws');
 const cors = require('cors');
 const connectDB = require('./config/db');
 
@@ -14,17 +15,28 @@ const { OpenAI } = require('openai');
 const openai = new OpenAI();
 
 const app = express();
+app.use(cors());
+
 const server = http.createServer(app);
+
+// Initialize Socket.IO with production-ready settings
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // As requested, allowing all origins for now
     methods: ["GET", "POST"],
   },
+  pingTimeout: 60000, // 60 seconds
+  pingInterval: 25000, // 25 seconds
+  transports: ['websocket', 'polling'], // Enable both WebSocket and polling
+  allowUpgrades: true,
+  perMessageDeflate: {
+    threshold: 2048 // Only compress data above this size (in bytes)
+  }
 });
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
@@ -432,4 +444,9 @@ io.on("connection", (socket) => {
     }
     console.log(`User disconnected: ${socket.id}`);
   });
+});
+
+// Basic health check route
+app.get('/', (req, res) => {
+  res.send('Server is running');
 });

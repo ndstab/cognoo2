@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://cogniwebsocket.centralindia.cloudapp.azure.com';
 
 const api = axios.create({
   baseURL: API_URL,
