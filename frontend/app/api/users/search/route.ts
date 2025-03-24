@@ -1,57 +1,74 @@
 import { NextResponse } from 'next/server'
 import connectDB from '@/config/db'
 import User from '@/models/User'
+import jwt from 'jsonwebtoken'
 
-export const dynamic = 'force-dynamic'
+// Secret key for JWT (Use env variables in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_for_development'
 
-export async function GET(request: Request) {
+// Helper function to verify JWT token
+const verifyToken = (token: string) => {
   try {
-    // Get the username query parameter
-    const url = new URL(request.url)
-    const username = url.searchParams.get('username')
-    
-    if (!username) {
-      return new Response(
-        JSON.stringify({ message: 'Username parameter is required' }),
-        { 
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      )
-    }
-    
-    // Connect to database
+    const decoded = jwt.verify(token, JWT_SECRET)
+    return decoded as { id: string, email: string }
+  } catch (error) {
+    return null
+  }
+}
+
+export async function GET(req: Request) {
+  try {
     await connectDB()
     
-    // Search for users with similar usernames (case insensitive)
+    // Get authorization header
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Extract and verify token
+    const token = authHeader.split(' ')[1]
+    const decoded = verifyToken(token)
+    
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    const { searchParams } = new URL(req.url)
+    const username = searchParams.get('username')
+
+    if (!username) {
+      return NextResponse.json(
+        { error: 'Username parameter is required' },
+        { status: 400 }
+      )
+    }
+
     const users = await User.find({
       username: { $regex: username, $options: 'i' }
     })
     .select('_id username email')
     .limit(10)
-    
-    // Map the results to a safe format (exclude sensitive info)
-    const safeUsers = users.map(user => ({
+
+    // Map the results to include id field
+    const mappedUsers = users.map(user => ({
       id: user._id,
       username: user.username,
       email: user.email
     }))
-    
-    return new Response(
-      JSON.stringify({ users: safeUsers }),
-      { 
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    )
-  } catch (error) {
+
+    return NextResponse.json({ users: mappedUsers })
+  } catch (error: any) {
     console.error('Error searching users:', error)
-    return new Response(
-      JSON.stringify({ message: 'Internal server error', error: (error as Error).message }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
+    return NextResponse.json(
+      { error: error.message || 'Failed to search users' },
+      { status: 500 }
     )
   }
 }

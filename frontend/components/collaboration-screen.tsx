@@ -1,15 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Search, Plus, MessageSquare, X } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 interface Collaboration {
-  id: string
-  username: string
-  lastMessage: string
-  timestamp: string
+  _id: string
+  name: string
+  creator: {
+    _id: string
+    username: string
+    email: string
+  }
+  members: Array<{
+    _id: string
+    username: string
+    email: string
+  }>
+  lastMessage?: {
+    content: string
+    sender: {
+      _id: string
+      username: string
+    }
+    timestamp: string
+  }
+  updatedAt: string
 }
 
 interface User {
@@ -19,44 +37,85 @@ interface User {
 }
 
 export function CollaborationScreen() {
+  const { data: session } = useSession()
   const [searchTerm, setSearchTerm] = useState('')
-  const [collaborations, setCollaborations] = useState<Collaboration[]>([
-    // Dummy data for now
-    {
-      id: '1',
-      username: 'John Doe',
-      lastMessage: 'Hey, how are you?',
-      timestamp: '2:30 PM'
-    },
-    {
-      id: '2',
-      username: 'Jane Smith',
-      lastMessage: 'Great idea!',
-      timestamp: '1:45 PM'
-    }
-  ])
+  const [collaborations, setCollaborations] = useState<Collaboration[]>([])
   const [showCreateCollab, setShowCreateCollab] = useState(false)
   const [collabName, setCollabName] = useState('')
   const [userSearchTerm, setUserSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<User[]>([])
   const [selectedUsers, setSelectedUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // Fetch collaborations on component mount
+  useEffect(() => {
+    fetchCollaborations()
+  }, [])
+
+  const fetchCollaborations = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setError('Please log in to view collaborations')
+        return
+      }
+
+      const response = await fetch('/api/collaborations', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to fetch collaborations')
+      }
+
+      const data = await response.json()
+      setCollaborations(data)
+    } catch (err: any) {
+      console.error('Error fetching collaborations:', err)
+      setError(err.message || 'Failed to load collaborations')
+    }
+  }
 
   const searchUsers = async () => {
     if (!userSearchTerm.trim()) return
     
     setLoading(true)
+    setError('')
     try {
-      const response = await fetch(`/api/users/search?username=${encodeURIComponent(userSearchTerm)}`)
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setError('Please log in to search users')
+        return
+      }
+
+      const response = await fetch(`/api/users/search?username=${encodeURIComponent(userSearchTerm)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       
       if (!response.ok) {
-        throw new Error('Failed to search users')
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to search users')
       }
       
       const data = await response.json()
-      setSearchResults(data.users)
-    } catch (err) {
+      console.log('Search results:', data) // Debug log
+      
+      // Filter out the current user from search results
+      const filteredUsers = data.users.filter((user: User) => 
+        user.id !== session?.user?.id
+      )
+      
+      console.log('Filtered users:', filteredUsers) // Debug log
+      setSearchResults(filteredUsers)
+    } catch (err: any) {
       console.error('Error searching users:', err)
+      setError(err.message || 'Failed to search users')
     } finally {
       setLoading(false)
     }
@@ -74,19 +133,61 @@ export function CollaborationScreen() {
     })
   }
 
-  const createCollaboration = () => {
+  const createCollaboration = async () => {
     if (!collabName.trim() || selectedUsers.length === 0) return
     
-    // Here you would make an API call to create the collaboration
-    console.log('Creating collaboration:', {
-      name: collabName,
-      users: selectedUsers
+    try {
+      setError('')
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setError('Please log in to create a collaboration')
+        return
+      }
+
+      console.log('Creating collaboration with:', {
+        name: collabName,
+        members: selectedUsers.map(user => user.id)
+      })
+
+      const response = await fetch('/api/collaborations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: collabName,
+          members: selectedUsers.map(user => user.id),
+        }),
+      })
+
+      const data = await response.json()
+      console.log('Collaboration response:', data)
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create collaboration')
+      }
+
+      setCollaborations(prev => [data, ...prev])
+      
+      // Reset the form
+      setCollabName('')
+      setSelectedUsers([])
+      setShowCreateCollab(false)
+    } catch (err: any) {
+      console.error('Error creating collaboration:', err)
+      setError(err.message || 'Failed to create collaboration')
+    }
+  }
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
     })
-    
-    // Reset the form
-    setCollabName('')
-    setSelectedUsers([])
-    setShowCreateCollab(false)
   }
 
   return (
@@ -110,9 +211,21 @@ export function CollaborationScreen() {
         </div>
 
         <div className="overflow-y-auto h-[calc(100vh-8rem)]">
+          {error && (
+            <div className="p-4 text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg mx-4">
+              {error}
+            </div>
+          )}
+          
+          {collaborations.length === 0 && !error && (
+            <div className="p-4 text-sm text-muted-foreground">
+              No collaborations yet. Create one to get started!
+            </div>
+          )}
+          
           {collaborations.map((collab) => (
             <div
-              key={collab.id}
+              key={collab._id}
               className="flex items-center p-4 hover:bg-muted cursor-pointer"
             >
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mr-3">
@@ -120,10 +233,23 @@ export function CollaborationScreen() {
               </div>
               <div className="flex-1">
                 <div className="flex justify-between">
-                  <h3 className="font-medium">{collab.username}</h3>
-                  <span className="text-xs text-muted-foreground">{collab.timestamp}</span>
+                  <h3 className="font-medium">{collab.name}</h3>
+                  <span className="text-xs text-muted-foreground">
+                    {formatTimestamp(collab.updatedAt)}
+                  </span>
                 </div>
-                <p className="text-sm text-muted-foreground truncate">{collab.lastMessage}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {collab.lastMessage ? (
+                    <span>
+                      <span className="font-medium">
+                        {collab.lastMessage.sender?.username || 'Unknown'}:{' '}
+                      </span>
+                      {collab.lastMessage.content}
+                    </span>
+                  ) : (
+                    `${collab.members.length} members`
+                  )}
+                </p>
               </div>
             </div>
           ))}
