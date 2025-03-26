@@ -1,10 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Button } from './ui/button'
+import { useState, useEffect, useRef } from 'react'
+import { Button } from '@/components/ui/button'
 import { Input } from './ui/input'
-import { Search, Plus, MessageSquare, X } from 'lucide-react'
+import { Search, Plus, MessageSquare, X, Send } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { jwtDecode } from 'jwt-decode'
+import io, { Socket } from 'socket.io-client'
+import { Avatar, AvatarFallback } from './ui/avatar'
+import ReactMarkdown from 'react-markdown'
+import { useRouter } from 'next/router'
 
 interface Collaboration {
   _id: string
@@ -36,6 +41,33 @@ interface User {
   email: string
 }
 
+interface Message {
+  sender: string;
+  userId?: string;
+  message: string;
+  timestamp?: string;
+  isAI?: boolean;
+}
+
+interface DecodedToken {
+  userId: string
+  username: string
+  email: string
+  iat: number
+  exp: number
+}
+
+// Socket server URL - pointing to backend socket server
+const SOCKET_SERVER_URL = "http://localhost:3001";
+
+// Initialize socket connection outside component to match page.tsx pattern
+const socket = io(SOCKET_SERVER_URL, {
+  withCredentials: false,
+  transports: ['websocket', 'polling'],
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000
+});
+
 export function CollaborationScreen() {
   const { data: session } = useSession()
   const [searchTerm, setSearchTerm] = useState('')
@@ -47,107 +79,370 @@ export function CollaborationScreen() {
   const [selectedUsers, setSelectedUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [selectedCollab, setSelectedCollab] = useState<Collaboration | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [messageText, setMessageText] = useState('')
+  const [username, setUsername] = useState('')
+  const [currentUserId, setCurrentUserId] = useState('')
+  const [connectedUsers, setConnectedUsers] = useState<Array<{userId: string, username: string}>>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Initialize socket connection if not already set
+  useEffect(() => {
+    if (socket) return; // Already have a socket
+    
+    // Check for token and set username/userId first
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        setUsername(decoded.username);
+        setCurrentUserId(decoded.userId);
+        console.log('Setting user information from token:', decoded.username, decoded.userId);
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+    
+    console.log("Socket initialized with ID:", socket.id);
+    
+    socket.on('disconnect', (reason) => {
+      console.error(`Socket disconnected: ${reason}`);
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: `Disconnected: ${reason}. Attempting to reconnect...` 
+      }]);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log(`Socket reconnected after ${attemptNumber} attempts`);
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: `Reconnected to chat server` 
+      }]);
+      
+      // Rejoin the room after reconnecting
+      if (selectedCollab) {
+        console.log(`Rejoining room ${selectedCollab._id} after reconnection`);
+        socket.emit('join_room', selectedCollab._id, username, currentUserId);
+      }
+    });
+    
+    socket.on('reconnect_failed', () => {
+      console.error('Socket reconnection failed');
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: 'Failed to reconnect. Please refresh the page.' 
+      }]);
+    });
+    
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  // Set up socket event listeners
+  useEffect(() => {
+    if (!socket) return;
+    
+    // Debug connection
+    socket.on('connect', () => {
+      console.log('Connected to socket server!', socket.id);
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: 'Connected to chat server' 
+      }]);
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: 'Connection error: ' + error.message 
+      }]);
+    });
+
+    // Listen for incoming messages - backend uses receive_message
+    socket.on("receive_message", (data) => {
+      console.log("⭐ Received message:", data);
+      
+      if (!data || !data.message) {
+        console.error("Invalid message data received:", data);
+        return;
+      }
+      
+      // Make sure we have the format we expect
+      const messageToAdd = {
+        sender: data.sender || 'Unknown',
+        userId: data.userId || '',
+        message: data.message || '',
+        timestamp: data.timestamp || new Date().toISOString(),
+      };
+      
+      // Update messages list
+      setMessages((prev) => {
+        console.log("Adding received message to chat:", messageToAdd);
+        return [...prev, messageToAdd];
+      });
+    });
+
+    // Events for user joined/left - backend uses user_joined and user_left
+    socket.on("user_joined", (data) => {
+      if (typeof data === 'string') {
+        setMessages((prev) => [...prev, { sender: "System", message: data }]);
+      } else if (data && data.username) {
+        setMessages((prev) => [...prev, { 
+          sender: "System", 
+          message: `${data.username} has joined the room` 
+        }]);
+
+        // Update users list if provided
+        if (data.users) {
+          setConnectedUsers(data.users.map((user: any) => ({
+            userId: typeof user === 'string' ? user : user.id || user._id || '',
+            username: typeof user === 'string' ? user : user.username || 'Unknown'
+          })));
+        }
+      }
+    });
+
+    socket.on("user_left", (data) => {
+      if (typeof data === 'string') {
+        setMessages((prev) => [...prev, { sender: "System", message: data }]);
+      } else if (data && data.username) {
+        setMessages((prev) => [...prev, { 
+          sender: "System", 
+          message: `${data.username} has left the room` 
+        }]);
+        
+        // Update users list if provided
+        if (data.users) {
+          setConnectedUsers(data.users.map((user: any) => ({
+            userId: typeof user === 'string' ? user : user.id || user._id || '',
+            username: typeof user === 'string' ? user : user.username || 'Unknown'
+          })));
+        }
+      }
+    });
+
+    return () => {
+      if (socket) {
+        socket.off("connect");
+        socket.off("connect_error");
+        socket.off("receive_message");
+        socket.off("user_joined");
+        socket.off("user_left");
+      }
+    };
+  }, [socket]);
+
+  // Debug user information
+  useEffect(() => {
+    console.log('Current user information updated:', { username, userId: currentUserId });
+  }, [username, currentUserId]);
+  
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Join collaboration room when selecting a collaboration
+  useEffect(() => {
+    if (!selectedCollab || !socket) return;
+    if (!username || !currentUserId) {
+      console.warn('User info not loaded yet, will try again when available');
+      return;
+    }
+    
+    // Using collaboration ID as room ID
+    const roomId = selectedCollab._id;
+    console.log('Joining room with ID:', roomId, 'as user:', username);
+    
+    // Join the room - simplified to match page.tsx approach
+    socket.emit("join_room", roomId, username, currentUserId);
+    
+    // Clear previous messages and add system message
+    setMessages([{ 
+      sender: 'System', 
+      message: `Joined collaboration: ${selectedCollab.name}` 
+    }]);
+    
+    // Leave room when component unmounts or selection changes
+    return () => {
+      console.log('Leaving room:', roomId);
+      socket.emit('leave_room');
+    };
+  }, [selectedCollab, socket, username, currentUserId]);
 
   // Fetch collaborations on component mount
   useEffect(() => {
-    fetchCollaborations()
-  }, [])
+    fetchCollaborations();
+  }, []);
+
+  // Fetch user data from profile
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        // First try to extract from token
+        try {
+          const decoded = jwtDecode<DecodedToken>(token);
+          setUsername(decoded.username || '');
+          setCurrentUserId(decoded.userId || '');
+          console.log('Extracted from token:', decoded.username, decoded.userId);
+        } catch (error) {
+          console.error('Error decoding token:', error);
+        }
+        
+        // Also fetch from profile API to ensure we have the latest data
+        const response = await fetch('/api/user/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('User profile data:', userData);
+          
+          if (userData.username && !username) {
+            setUsername(userData.username);
+          }
+          
+          if (userData._id && !currentUserId) {
+            setCurrentUserId(userData._id);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+    
+    fetchUserProfile();
+  }, []);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const fetchCollaborations = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('token');
       if (!token) {
-        setError('Please log in to view collaborations')
-        return
+        setError('Please log in to view collaborations');
+        return;
       }
 
       const response = await fetch('/api/collaborations', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
-      })
+      });
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to fetch collaborations')
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to fetch collaborations');
       }
 
-      const data = await response.json()
-      setCollaborations(data)
+      const data = await response.json();
+      setCollaborations(data);
     } catch (err: any) {
-      console.error('Error fetching collaborations:', err)
-      setError(err.message || 'Failed to load collaborations')
+      console.error('Error fetching collaborations:', err);
+      setError(err.message || 'Failed to load collaborations');
     }
-  }
+  };
+
+  const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!messageText.trim() || !selectedCollab || !socket) {
+      console.error("Cannot send message: missing message, collaboration, or socket");
+      return;
+    }
+    
+    // Simply get the roomId from selected collaboration
+    const roomId = selectedCollab._id;
+    
+    // Create message data matching the format in page.tsx
+    const messageData = { 
+      roomId, 
+      message: messageText.trim(), 
+      sender: username, 
+      userId: currentUserId 
+    };
+    
+    console.log('Sending message with data:', messageData);
+    
+    // Send to server - using same pattern as page.tsx
+    socket.emit('send_message', messageData);
+    
+    // Clear input field
+    setMessageText('');
+  };
 
   const searchUsers = async () => {
-    if (!userSearchTerm.trim()) return
+    if (!userSearchTerm.trim()) return;
     
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError('');
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('token');
       if (!token) {
-        setError('Please log in to search users')
-        return
+        setError('Please log in to search users');
+        return;
       }
 
       const response = await fetch(`/api/users/search?username=${encodeURIComponent(userSearchTerm)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
-      })
+      });
       
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to search users')
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to search users');
       }
       
-      const data = await response.json()
-      console.log('Search results:', data) // Debug log
+      const data = await response.json();
       
       // Filter out the current user from search results
+      const decoded = jwtDecode<DecodedToken>(token);
       const filteredUsers = data.users.filter((user: User) => 
-        user.id !== session?.user?.id
-      )
+        user.id !== decoded.userId
+      );
       
-      console.log('Filtered users:', filteredUsers) // Debug log
-      setSearchResults(filteredUsers)
+      setSearchResults(filteredUsers);
     } catch (err: any) {
-      console.error('Error searching users:', err)
-      setError(err.message || 'Failed to search users')
+      console.error('Error searching users:', err);
+      setError(err.message || 'Failed to search users');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const toggleUserSelection = (user: User) => {
     setSelectedUsers(prev => {
       if (prev.find(u => u.id === user.id)) {
-        return prev.filter(u => u.id !== user.id)
+        return prev.filter(u => u.id !== user.id);
       }
       // Clear search field and results when adding a user
-      setUserSearchTerm('')
-      setSearchResults([])
-      return [...prev, user]
-    })
-  }
+      setUserSearchTerm('');
+      setSearchResults([]);
+      return [...prev, user];
+    });
+  };
 
   const createCollaboration = async () => {
-    if (!collabName.trim() || selectedUsers.length === 0) return
+    if (!collabName.trim() || selectedUsers.length === 0) return;
     
     try {
-      setError('')
-      const token = localStorage.getItem('token')
+      setError('');
+      const token = localStorage.getItem('token');
       if (!token) {
-        setError('Please log in to create a collaboration')
-        return
+        setError('Please log in to create a collaboration');
+        return;
       }
-
-      console.log('Creating collaboration with:', {
-        name: collabName,
-        members: selectedUsers.map(user => user.id)
-      })
 
       const response = await fetch('/api/collaborations', {
         method: 'POST',
@@ -159,36 +454,101 @@ export function CollaborationScreen() {
           name: collabName,
           members: selectedUsers.map(user => user.id),
         }),
-      })
+      });
 
-      const data = await response.json()
-      console.log('Collaboration response:', data)
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create collaboration')
+        throw new Error(data.error || 'Failed to create collaboration');
       }
 
-      setCollaborations(prev => [data, ...prev])
+      setCollaborations(prev => [data, ...prev]);
       
       // Reset the form
-      setCollabName('')
-      setSelectedUsers([])
-      setShowCreateCollab(false)
+      setCollabName('');
+      setSelectedUsers([]);
+      setShowCreateCollab(false);
+      
+      // Select the newly created collaboration
+      setSelectedCollab(data);
     } catch (err: any) {
-      console.error('Error creating collaboration:', err)
-      setError(err.message || 'Failed to create collaboration')
+      console.error('Error creating collaboration:', err);
+      setError(err.message || 'Failed to create collaboration');
     }
-  }
+  };
 
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp)
+    const date = new Date(timestamp);
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
-    })
-  }
+    });
+  };
+
+  const handleCollabSelect = (collab: Collaboration) => {
+    setSelectedCollab(collab);
+    setShowCreateCollab(false);
+  };
+
+  // Function to render message with markdown for certain messages
+  const renderMessage = (msg: Message, index: number) => {
+    const isSystem = msg.sender === "System";
+    
+    // Improve the check for current user's messages
+    const isCurrentUser = msg.userId === currentUserId || 
+                         (!msg.userId && msg.sender === username);
+    
+    console.log('Message render info:', {
+      msgSender: msg.sender,
+      msgUserId: msg.userId,
+      currentUserId,
+      username,
+      isCurrentUser
+    });
+    
+    const isAI = msg.isAI || msg.sender === "Cogni";
+    
+    return (
+      <div 
+        key={index} 
+        className={`mb-4 ${isSystem ? 'text-center text-gray-500 text-sm' : 
+          isCurrentUser ? 'flex flex-row-reverse' : 'flex flex-row'}`}
+      >
+        {!isSystem && (
+          <div className={`flex flex-col max-w-[75%] ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+            <div className={`flex items-center mb-1 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'}`}>
+              <Avatar className={`h-6 w-6 ${isCurrentUser ? 'ml-2' : 'mr-2'}`}>
+                <AvatarFallback>{msg.sender && typeof msg.sender === 'string' ? msg.sender[0] : '?'}</AvatarFallback>
+              </Avatar>
+              <span className={`text-sm ${isCurrentUser ? 'mr-2' : 'ml-2'}`}>{msg.sender || 'Unknown'}</span>
+            </div>
+            <div className={`rounded-lg p-3 ${
+              isCurrentUser 
+                ? 'bg-primary text-primary-foreground' 
+                : isAI ? 'bg-gray-700 text-white' : 'bg-muted'
+            }`}>
+              {isAI ? (
+                <ReactMarkdown className="prose prose-sm prose-invert max-w-none">
+                  {msg.message || ''}
+                </ReactMarkdown>
+              ) : (
+                <p className="whitespace-pre-wrap break-words">{msg.message || ''}</p>
+              )}
+            </div>
+            {msg.timestamp && (
+              <span className="text-xs text-muted-foreground mt-1">
+                {formatTimestamp(msg.timestamp)}
+              </span>
+            )}
+          </div>
+        )}
+        
+        {isSystem && <div className="w-full text-muted-foreground italic">{msg.message || ''}</div>}
+      </div>
+    );
+  };
 
   return (
     <div className="fixed left-16 right-0 top-0 bottom-0 flex">
@@ -226,7 +586,10 @@ export function CollaborationScreen() {
           {collaborations.map((collab) => (
             <div
               key={collab._id}
-              className="flex items-center p-4 hover:bg-muted cursor-pointer"
+              className={`flex items-center p-4 hover:bg-muted cursor-pointer ${
+                selectedCollab?._id === collab._id ? 'bg-muted' : ''
+              }`}
+              onClick={() => handleCollabSelect(collab)}
             >
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mr-3">
                 <MessageSquare size={20} className="text-muted-foreground" />
@@ -323,7 +686,7 @@ export function CollaborationScreen() {
                       >
                         <span>{user.username}</span>
                         <button
-                          onClick={() => toggleUserSelection(user)}
+                          onClick={(e) => { e.preventDefault(); toggleUserSelection(user); }}
                           className="hover:text-destructive"
                         >
                           <X size={12} />
@@ -342,6 +705,61 @@ export function CollaborationScreen() {
               >
                 Create Collaboration
               </Button>
+            </div>
+          </div>
+        ) : selectedCollab ? (
+          <div className="flex-1 flex flex-col h-full">
+            {/* Chat header */}
+            <div className="p-4 border-b">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-semibold">{selectedCollab.name}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCollab.members.map(member => member.username).join(', ')}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setSelectedCollab(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            
+            {/* Chat messages */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {messages.length === 0 ? (
+                <div className="flex justify-center items-center h-full">
+                  <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((message, index) => renderMessage(message, index))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+            
+            {/* Message input */}
+            <div className="p-4 border-t">
+              <form 
+                onSubmit={sendMessage}
+                className="flex items-center gap-2"
+              >
+                <Input
+                  placeholder="Type your message..."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={!messageText.trim()}>
+                  <Send size={16} className="mr-2" />
+                  Send
+                </Button>
+              </form>
+              {error && (
+                <div className="mt-2 text-sm text-red-500">
+                  {error}
+                </div>
+              )}
             </div>
           </div>
         ) : (
