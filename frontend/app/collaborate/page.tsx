@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown'
 
 // Socket connection
 const socket = io("https://cogniwebsocket.centralindia.cloudapp.azure.com", {
+// const socket = io("https://localhost:3001", {
   withCredentials: false,
   transports: ['websocket', 'polling'],
   reconnectionAttempts: 5,
@@ -100,17 +101,17 @@ export default function CollaboratePage() {
       <div 
         key={index} 
         className={`mb-4 ${isSystem ? 'text-center text-gray-500 text-sm' : 
-          isAI ? 'flex flex-row' : 'flex flex-row-reverse'}`}
+          isAI ? 'flex flex-col w-full' : 'flex flex-row-reverse'}`}
       >
         {!isSystem && (
-          <div className={`flex flex-col max-w-[75%] ${isAI ? 'mr-auto' : 'ml-auto'}`}>
+          <div className={`flex flex-col ${isAI ? 'w-full' : 'max-w-[75%] ml-auto'}`}>
             <div className="flex items-center mb-1">
               <Avatar className={`h-6 w-6 ${isAI ? 'mr-2' : 'ml-2 order-2'}`}>
-                <AvatarFallback>{isAI ? 'AI' : msg.sender[0]}</AvatarFallback>
+                <AvatarFallback>{isAI ? 'C' : msg.sender[0]}</AvatarFallback>
               </Avatar>
               <span className={`text-sm ${isAI ? '' : 'order-1 mr-2'}`}>{msg.sender}</span>
             </div>
-            <div className={`rounded-lg p-3 ${isAI ? 'bg-gray-700 text-white' : 'bg-muted'} overflow-hidden`}>
+            <div className={`rounded-lg p-3 ${isAI ? 'bg-gray-700 text-white w-full' : 'bg-muted'} overflow-hidden`}>
               {isAI ? (
                 <ReactMarkdown 
                   className="prose prose-sm prose-invert max-w-none"
@@ -122,21 +123,43 @@ export default function CollaboratePage() {
                       <div className="my-4 flex justify-center">
                         <img
                           {...props}
-                          className="max-w-full h-auto rounded-lg shadow-lg"
+                          className="max-w-full h-auto rounded-lg shadow-lg hover:scale-105 transition-transform cursor-pointer"
                           loading="lazy"
                           onError={(e) => {
-                            e.currentTarget.style.display = 'none'
+                            console.error('Image failed to load:', props.src);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          onClick={(e) => {
+                            // Open image in new tab when clicked
+                            window.open(props.src, '_blank');
                           }}
                         />
                       </div>
                     ),
-                    p: ({node, ...props}) => (
-                      <p {...props} className="mb-2 last:mb-0" />
-                    ),
+                    p: ({node, children, ...props}) => {
+                      // Check if paragraph contains only an image
+                      const containsOnlyImage = React.Children.toArray(children).every(
+                        child => React.isValidElement(child) && child.type === 'img'
+                      );
+                      
+                      return containsOnlyImage ? (
+                        <>{children}</>
+                      ) : (
+                        <p {...props} className="mb-2 last:mb-0">{children}</p>
+                      );
+                    },
                     code: ({node, inline, ...props}: {node?: any, inline?: boolean, [key: string]: any}) => (
                       inline ? 
                         <code {...props} className="px-1 py-0.5 rounded-sm bg-gray-800" /> :
                         <code {...props} className="block p-2 rounded-md bg-gray-800 overflow-x-auto" />
+                    ),
+                    a: ({node, ...props}) => (
+                      <a 
+                        {...props} 
+                        className="text-blue-400 hover:text-blue-300 underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
                     )
                   }}
                 >
@@ -162,11 +185,11 @@ export default function CollaboratePage() {
       
       {!joined ? (
         <Card className="w-full max-w-md p-6 space-y-4">
-          <h2 className="text-xl font-semibold text-center">Join a Chat Room</h2>
+          <h2 className="text-xl font-semibold text-center">Join a Chat Group</h2>
           <div className="space-y-3">
             <Input
               type="text"
-              placeholder="Room ID"
+              placeholder="Collaboration Group ID"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
               className="w-full"
@@ -182,14 +205,14 @@ export default function CollaboratePage() {
               onClick={joinRoom}
               className="w-full"
             >
-              Join Room
+              Join Chat
             </Button>
           </div>
         </Card>
       ) : (
         <div className="w-full max-w-4xl flex flex-col h-[80vh]">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Room: {roomId}</h2>
+            <h2 className="text-xl font-semibold">Group: {roomId}</h2>
             <Button 
               variant="outline" 
               onClick={() => {
@@ -198,7 +221,7 @@ export default function CollaboratePage() {
                 setMessages([])
               }}
             >
-              Leave Room
+              Leave Chat
             </Button>
           </div>
           
