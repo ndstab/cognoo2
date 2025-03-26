@@ -46,14 +46,30 @@ const roomMessages = {};
 
 // Socket.io event handlers
 io.on('connection', (socket) => {
-  console.log('New client connected');
+  console.log('New client connected:', socket.id);
 
-  socket.on('join_room', (roomId, username) => {
+  // Store socket info for disconnection handling
+  const clientInfo = {};
+
+  // Join collaboration room
+  socket.on('join_room', (roomId, username, userId) => {
+    console.log(`User ${username} (${userId}) joining room ${roomId}`);
+    
+    // Store client info for disconnection handling
+    clientInfo.roomId = roomId;
+    clientInfo.username = username;
+    clientInfo.userId = userId;
+    
+    // Join the socket.io room
     socket.join(roomId);
+    
+    // Initialize room if it doesn't exist
     if (!rooms[roomId]) {
       rooms[roomId] = new Set();
       roomMessages[roomId] = [];
     }
+    
+    // Add user to room
     rooms[roomId].add(username);
     
     // Notify room about new user
@@ -61,97 +77,156 @@ io.on('connection', (socket) => {
       username,
       users: Array.from(rooms[roomId])
     });
+    
+    console.log(`Room ${roomId} now has users:`, Array.from(rooms[roomId]));
   });
 
-  socket.on('leave_room', (roomId, username) => {
+  // Leave collaboration room
+  socket.on('leave_room', () => {
+    if (!clientInfo.roomId) return;
+    
+    const { roomId, username, userId } = clientInfo;
+    console.log(`User ${username} (${userId}) leaving room ${roomId}`);
+    
     socket.leave(roomId);
+    
     if (rooms[roomId]) {
       rooms[roomId].delete(username);
+      
+      // If room is empty, remove it
       if (rooms[roomId].size === 0) {
         delete rooms[roomId];
         delete roomMessages[roomId];
+        console.log(`Room ${roomId} is now empty and removed`);
       } else {
+        // Notify room that user left
         io.to(roomId).emit('user_left', {
           username,
           users: Array.from(rooms[roomId])
         });
+        console.log(`Room ${roomId} now has users:`, Array.from(rooms[roomId]));
       }
     }
+    
+    // Clear client info
+    delete clientInfo.roomId;
+    delete clientInfo.username;
+    delete clientInfo.userId;
   });
 
-  socket.on('send_message', async (data) => {
-    const { roomId, message, sender } = data;
+  // Send message to room
+  socket.on('send_message', (data, callback) => {
+    const { roomId, message, sender, userId, timestamp } = data;
+    
+    if (!roomId) {
+      console.error("Missing roomId in send_message event");
+      if (typeof callback === 'function') {
+        callback({ received: false, error: "Missing roomId" });
+      }
+      return;
+    }
+    
+    // Check if room exists
+    if (!rooms[roomId]) {
+      console.error(`Room ${roomId} does not exist for send_message`);
+      if (typeof callback === 'function') {
+        callback({ received: false, error: "Room not found" });
+      }
+      return;
+    }
+    
+    console.log(`Message from ${sender} (${userId}) in room ${roomId}: ${message}`);
     
     // Store message in room history
     if (!roomMessages[roomId]) roomMessages[roomId] = [];
-    roomMessages[roomId].push({ sender, message, timestamp: Date.now() });
     
-    // Broadcast message to room
-    io.to(roomId).emit('receive_message', {
+    const messageObj = {
       sender,
+      userId,
       message,
-      timestamp: Date.now()
-    });
-
+      timestamp: timestamp || Date.now()
+    };
+    
+    roomMessages[roomId].push(messageObj);
+    
+    // Broadcast message to all clients in room EXCEPT sender
+    socket.to(roomId).emit('receive_message', messageObj);
+    
+    // Acknowledge receipt to the sender
+    if (typeof callback === 'function') {
+      callback({ 
+        received: true, 
+        timestamp: messageObj.timestamp,
+        roomMembers: io.sockets.adapter.rooms.get(roomId).size
+      });
+    }
+    
     // Check if AI should respond
     try {
-      if (await shouldAIRespond(message, roomId)) {
-        io.to(roomId).emit('ai_typing', true);
-        
-        try {
-          const taskDecision = await taskManager(message, roomId);
-          let aiResponse;
-          
-          if (taskDecision.object.next === 'search') {
-            aiResponse = await generateWithSearch(message, roomId);
-          } else {
-            // Get recent chat history for context
-            const recentMessages = roomMessages[roomId]
-              ? roomMessages[roomId].slice(-3).map(m => `${m.sender}: ${m.message}`).join('\n')
-              : '';
-            
-            const completion = await openai.chat.completions.create({
-              model: 'gpt-4o-mini',
-              messages: [
-                {
-                  role: 'system',
-                  content: 'You are Cogni, a helpful AI assistant in a group chat. Provide engaging and informative responses that encourage discussion. Consider the chat history and group context in your responses.'
-                },
-                {
-                  role: 'user',
-                  content: `Chat history:\n${recentMessages}\n\nCurrent message: ${message}`
-                }
-              ],
-              temperature: 0.7,
-              max_tokens: 500
-            });
-            aiResponse = completion.choices[0].message.content;
-          }
-          
+      shouldAIRespond(message, roomId).then(shouldRespond => {
+        if (shouldRespond) {
           io.to(roomId).emit('receive_message', {
             sender: 'Cogni',
-            message: aiResponse,
-            timestamp: Date.now()
+            message: 'Typing...',
+            timestamp: Date.now(),
+            isAI: true
           });
-        } catch (error) {
-          console.error('Error generating AI response:', error);
-          io.to(roomId).emit('receive_message', {
-            sender: 'Cogni',
-            message: 'I apologize, but I encountered an error while processing your message. Could you please try again?',
-            timestamp: Date.now()
+          
+          getAIResponse(message, roomId).then(aiResponse => {
+            const aiMessageObj = {
+              sender: 'Cogni',
+              message: aiResponse,
+              timestamp: Date.now(),
+              isAI: true
+            };
+            
+            roomMessages[roomId].push(aiMessageObj);
+            io.to(roomId).emit('receive_message', aiMessageObj);
+          }).catch(error => {
+            console.error('Error getting AI response:', error);
+            io.to(roomId).emit('receive_message', {
+              sender: 'Cogni',
+              message: 'Sorry, I had trouble processing that request.',
+              timestamp: Date.now(),
+              isAI: true
+            });
           });
         }
-        
-        io.to(roomId).emit('ai_typing', false);
-      }
+      }).catch(error => {
+        console.error('Error determining if AI should respond:', error);
+      });
     } catch (error) {
       console.error('Error in message processing:', error);
-      io.to(roomId).emit('ai_typing', false);
     }
   });
 
+  // Handle disconnection
   socket.on('disconnect', () => {
-    console.log('Client disconnected');
+    console.log('Client disconnected:', socket.id);
+    
+    // Handle leaving room on disconnect
+    if (clientInfo.roomId) {
+      const { roomId, username, userId } = clientInfo;
+      console.log(`User ${username} disconnected from room ${roomId}`);
+      
+      if (rooms[roomId]) {
+        rooms[roomId].delete(username);
+        
+        // If room is empty, remove it
+        if (rooms[roomId].size === 0) {
+          delete rooms[roomId];
+          delete roomMessages[roomId];
+          console.log(`Room ${roomId} is now empty and removed`);
+        } else {
+          // Notify room that user left
+          io.to(roomId).emit('user_left', {
+            username,
+            users: Array.from(rooms[roomId])
+          });
+          console.log(`Room ${roomId} now has users:`, Array.from(rooms[roomId]));
+        }
+      }
+    }
   });
 });
 
@@ -367,84 +442,6 @@ async function getAIResponse(message, roomId) {
     return "I'm having trouble processing your request right now. Please try again later.";
   }
 }
-
-io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  socket.on("joinRoom", (roomId, username) => {
-    socket.join(roomId);
-    rooms[socket.id] = { roomId, username };
-    
-    // Initialize room message history if it doesn't exist
-    if (!roomMessages[roomId]) {
-      roomMessages[roomId] = [];
-    }
-    
-    console.log(`${username} joined room: ${roomId}`);
-    const joinMessage = `${username} joined the chat`;
-    roomMessages[roomId].push({ sender: "System", message: joinMessage });
-    io.to(roomId).emit("userJoined", joinMessage);
-  });
-
-  // Modified message handling with Cogni AI integration
-  socket.on("sendMessage", async ({ roomId, message, sender }) => {
-    // Add message to room history
-    roomMessages[roomId].push({ sender, message });
-    
-    // Emit the user's message to everyone
-    io.to(roomId).emit("receiveMessage", { sender, message });
-    
-    // Check if AI should respond
-    const shouldRespond = await shouldAIRespond(message, roomId);
-    
-    if (shouldRespond) {
-      // First, send a "thinking" message
-      io.to(roomId).emit("receiveMessage", { 
-        sender: "Cogni", 
-        message: "Thinking...",
-        isLoading: true
-      });
-      
-      // Determine if we need to search
-      const taskDecision = await taskManager(message, roomId);
-      
-      if (taskDecision.object.next === "search") {
-        // Send a "searching" message
-        io.to(roomId).emit("receiveMessage", { 
-          sender: "Cogni", 
-          message: "Searching for information...",
-          isLoading: true
-        });
-      }
-      
-      // Get the final response
-      const aiResponse = await getAIResponse(message, roomId);
-      
-      // Add AI response to room history
-      roomMessages[roomId].push({ sender: "Cogni", message: aiResponse });
-      
-      // Send to all users in the room
-      io.to(roomId).emit("receiveMessage", { 
-        sender: "Cogni", 
-        message: aiResponse,
-        isLoading: false
-      });
-    }
-  });
-
-  socket.on("disconnect", () => {
-    const user = rooms[socket.id];
-    if (user) {
-      const leaveMessage = `${user.username} left the chat`;
-      if (roomMessages[user.roomId]) {
-        roomMessages[user.roomId].push({ sender: "System", message: leaveMessage });
-      }
-      io.to(user.roomId).emit("userLeft", leaveMessage);
-      delete rooms[socket.id];
-    }
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
 
 // Basic health check route
 app.get('/', (req, res) => {
