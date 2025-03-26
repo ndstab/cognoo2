@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "server": "node server.js",
-    "start:server": "ts-node server.ts"
+    "start:server": "ts-node server.ts",
+    "socket": "node start-socket-server.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.18",
@@ -36,6 +37,7 @@
     "express-session": "^1.18.1",
     "http": "^0.0.1-security",
     "jsonwebtoken": "^9.0.2",
+    "jwt-decode": "^4.0.0",
     "lucide-react": "^0.368.0",
     "mongoose": "^8.12.2",
     "next": "^14.1.0",
@@ -47,7 +49,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-icons": "^5.0.1",
-    "react-markdown": "^9.0.1",
+    "react-markdown": "^9.1.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.2.2",

@@ -6,7 +6,7 @@ import { Input } from './ui/input'
 import { Search, Plus, MessageSquare, X, Send } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { jwtDecode } from 'jwt-decode'
-import io, { Socket } from 'socket.io-client'
+import { io, Socket } from 'socket.io-client'
 import { Avatar, AvatarFallback } from './ui/avatar'
 import ReactMarkdown from 'react-markdown'
 import { useRouter } from 'next/router'
@@ -60,14 +60,6 @@ interface DecodedToken {
 // Socket server URL - pointing to backend socket server
 const SOCKET_SERVER_URL = "http://localhost:3001";
 
-// Initialize socket connection outside component to match page.tsx pattern
-const socket = io(SOCKET_SERVER_URL, {
-  withCredentials: false,
-  transports: ['websocket', 'polling'],
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000
-});
-
 export function CollaborationScreen() {
   const { data: session } = useSession()
   const [searchTerm, setSearchTerm] = useState('')
@@ -86,10 +78,21 @@ export function CollaborationScreen() {
   const [currentUserId, setCurrentUserId] = useState('')
   const [connectedUsers, setConnectedUsers] = useState<Array<{userId: string, username: string}>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<Socket | null>(null)
 
   // Initialize socket connection if not already set
   useEffect(() => {
-    if (socket) return; // Already have a socket
+    // Create socket connection
+    if (!socketRef.current) {
+      socketRef.current = io(SOCKET_SERVER_URL, {
+        withCredentials: false,
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+    }
+    
+    const socket = socketRef.current;
     
     // Check for token and set username/userId first
     const token = localStorage.getItem('token');
@@ -106,7 +109,7 @@ export function CollaborationScreen() {
     
     console.log("Socket initialized with ID:", socket.id);
     
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', (reason: string) => {
       console.error(`Socket disconnected: ${reason}`);
       setMessages(prev => [...prev, { 
         sender: 'System', 
@@ -114,7 +117,7 @@ export function CollaborationScreen() {
       }]);
     });
     
-    socket.on('reconnect', (attemptNumber) => {
+    socket.on('reconnect', (attemptNumber: number) => {
       console.log(`Socket reconnected after ${attemptNumber} attempts`);
       setMessages(prev => [...prev, { 
         sender: 'System', 
@@ -139,11 +142,13 @@ export function CollaborationScreen() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [selectedCollab, username, currentUserId]);
 
   // Set up socket event listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!socketRef.current) return;
+    
+    const socket = socketRef.current;
     
     // Debug connection
     socket.on('connect', () => {
@@ -226,15 +231,13 @@ export function CollaborationScreen() {
     });
 
     return () => {
-      if (socket) {
-        socket.off("connect");
-        socket.off("connect_error");
-        socket.off("receive_message");
-        socket.off("user_joined");
-        socket.off("user_left");
-      }
+      socket.off("connect");
+      socket.off("connect_error");
+      socket.off("receive_message");
+      socket.off("user_joined");
+      socket.off("user_left");
     };
-  }, [socket]);
+  }, []);
 
   // Debug user information
   useEffect(() => {
@@ -248,31 +251,55 @@ export function CollaborationScreen() {
 
   // Join collaboration room when selecting a collaboration
   useEffect(() => {
-    if (!selectedCollab || !socket) return;
-    if (!username || !currentUserId) {
-      console.warn('User info not loaded yet, will try again when available');
-      return;
-    }
+    if (!selectedCollab || !socketRef.current) return;
     
-    // Using collaboration ID as room ID
-    const roomId = selectedCollab._id;
-    console.log('Joining room with ID:', roomId, 'as user:', username);
+    // Create a function to join the room that can be retried
+    const joinRoom = () => {
+      if (!username || !currentUserId) {
+        console.warn('User info not loaded yet, will retry in 1 second');
+        
+        // Add system message indicating we're waiting for user info
+        setMessages([{ 
+          sender: 'System', 
+          message: `Attempting to join collaboration: ${selectedCollab.name}. Waiting for user information...` 
+        }]);
+        
+        // Retry after 1 second
+        setTimeout(joinRoom, 1000);
+        return;
+      }
+      
+      const socket = socketRef.current;
+      if (!socket) return;
+      
+      // User info is now available, proceed with joining
+      console.log('User info ready, joining room:', { username, userId: currentUserId });
+      
+      // Using collaboration ID as room ID
+      const roomId = selectedCollab._id;
+      console.log('Joining room with ID:', roomId, 'as user:', username);
+      
+      // Join the room - simplified to match page.tsx approach
+      socket.emit("join_room", roomId, username, currentUserId);
+      
+      // Clear previous messages and add system message
+      setMessages([{ 
+        sender: 'System', 
+        message: `Joined collaboration: ${selectedCollab.name}` 
+      }]);
+    };
     
-    // Join the room - simplified to match page.tsx approach
-    socket.emit("join_room", roomId, username, currentUserId);
-    
-    // Clear previous messages and add system message
-    setMessages([{ 
-      sender: 'System', 
-      message: `Joined collaboration: ${selectedCollab.name}` 
-    }]);
+    // Start the join process
+    joinRoom();
     
     // Leave room when component unmounts or selection changes
     return () => {
-      console.log('Leaving room:', roomId);
-      socket.emit('leave_room');
+      if (socketRef.current) {
+        console.log('Leaving room:', selectedCollab._id);
+        socketRef.current.emit('leave_room');
+      }
     };
-  }, [selectedCollab, socket, username, currentUserId]);
+  }, [selectedCollab]);
 
   // Fetch collaborations on component mount
   useEffect(() => {
@@ -284,7 +311,14 @@ export function CollaborationScreen() {
     const fetchUserProfile = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) return;
+        if (!token) {
+          console.error('No authentication token found');
+          setMessages(prev => [...prev, { 
+            sender: 'System', 
+            message: 'Error: Missing authentication token. Please log in again.'
+          }]);
+          return;
+        }
         
         // First try to extract from token
         try {
@@ -323,6 +357,103 @@ export function CollaborationScreen() {
     fetchUserProfile();
   }, []);
 
+  // Function to debug user information
+  const debugUserInfo = () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No authentication token found');
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: 'Debug: No authentication token found.'
+      }]);
+      return;
+    }
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      console.log('Token debug:', {
+        username: decoded.username,
+        userId: decoded.userId,
+        email: decoded.email,
+        issued: new Date(decoded.iat * 1000).toLocaleString(),
+        expires: new Date(decoded.exp * 1000).toLocaleString()
+      });
+
+      setMessages(prev => [
+        ...prev, 
+        { 
+          sender: 'System', 
+          message: 'User Info Debug: \n' +
+                   `Username: ${decoded.username || 'Not set'}\n` +
+                   `User ID: ${decoded.userId || 'Not set'}\n` +
+                   `Token Expires: ${new Date(decoded.exp * 1000).toLocaleString()}`
+        }
+      ]);
+    } catch (error) {
+      console.error('Error decoding token for debug:', error);
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: 'Debug: Error decoding token: ' + (error instanceof Error ? error.message : String(error))
+      }]);
+    }
+  };
+
+  // Function to debug rooms
+  const debugRooms = () => {
+    // Debug user info first
+    debugUserInfo();
+    
+    if (!socketRef.current) {
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: 'Debug: Socket not connected. Cannot debug rooms.'
+      }]);
+      return;
+    }
+
+    const socket = socketRef.current;
+    
+    console.log('Requesting room debug info');
+    socket.emit('debug_rooms');
+    
+    socket.on('debug_response', (data: any) => {
+      console.log('Room debug info:', data);
+      
+      if (!data || !data.rooms) {
+        setMessages(prev => [...prev, { 
+          sender: 'System', 
+          message: 'Debug: No room information available.'
+        }]);
+        return;
+      }
+      
+      const roomCount = Object.keys(data.rooms).length;
+      let debugMessage = `Debug: ${roomCount} active rooms\n\n`;
+      
+      for (const [roomId, roomData] of Object.entries<any>(data.rooms)) {
+        const userCount = roomData.users ? roomData.users.length : 0;
+        const messageCount = roomData.messages ? roomData.messages.length : 0;
+        
+        debugMessage += `Room: ${roomId}\n`;
+        debugMessage += `- Users: ${userCount}\n`;
+        debugMessage += `- Messages: ${messageCount}\n\n`;
+      }
+      
+      setMessages(prev => [...prev, { 
+        sender: 'System', 
+        message: debugMessage
+      }]);
+      
+      // Clean up listener
+      socket.off('debug_response');
+    });
+    
+    // Handle potential timeout
+    setTimeout(() => {
+      socket.off('debug_response'); // Clean up if no response
+    }, 5000);
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -356,10 +487,12 @@ export function CollaborationScreen() {
 
   const sendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!messageText.trim() || !selectedCollab || !socket) {
+    if (!messageText.trim() || !selectedCollab || !socketRef.current) {
       console.error("Cannot send message: missing message, collaboration, or socket");
       return;
     }
+    
+    const socket = socketRef.current;
     
     // Simply get the roomId from selected collaboration
     const roomId = selectedCollab._id;
@@ -718,9 +851,17 @@ export function CollaborationScreen() {
                     {selectedCollab.members.map(member => member.username).join(', ')}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setSelectedCollab(null)}>
-                  Close
-                </Button>
+                <div className="flex space-x-2">
+                  <Button variant="outline" size="sm" onClick={debugUserInfo}>
+                    Debug User
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={debugRooms}>
+                    Debug Rooms
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedCollab(null)}>
+                    Close
+                  </Button>
+                </div>
               </div>
             </div>
             
