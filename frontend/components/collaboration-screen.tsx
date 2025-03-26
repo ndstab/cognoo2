@@ -57,7 +57,8 @@ interface DecodedToken {
 }
 
 // Socket server URL - pointing to backend socket server
-const SOCKET_SERVER_URL = "https://cogniwebsocket.centralindia.cloudapp.azure.com";
+// const SOCKET_SERVER_URL = "https://cogniwebsocket.centralindia.cloudapp.azure.com";
+const SOCKET_SERVER_URL = "https://localhost:3001";
 
 // Create a single socket instance outside the component
 let socketInstance: Socket | null = null;
@@ -101,6 +102,7 @@ export function CollaborationScreen() {
     
     return () => {
       // Don't disconnect the socket on component unmount
+      // This prevents losing connection when navigating between pages
       console.log("Component unmounting, keeping socket alive");
     };
   }, []);
@@ -167,6 +169,9 @@ export function CollaborationScreen() {
       console.log("⭐ Received message:", data);
       
       try {
+        // Log more info for debugging
+        console.log("Current messages state:", messages);
+        
         if (!data) {
           console.error("Received null or undefined message data");
           return;
@@ -188,8 +193,12 @@ export function CollaborationScreen() {
         
         console.log("Adding formatted message to chat:", messageToAdd);
         
-        // Update messages list with immutable pattern
-        setMessages(prevMessages => [...prevMessages, messageToAdd]);
+        // Update messages list with immutable pattern to ensure React sees the change
+        setMessages(prevMessages => {
+          const newMessages = [...prevMessages, messageToAdd];
+          console.log("New messages state:", newMessages);
+          return newMessages;
+        });
       } catch (err) {
         console.error("Error processing received message:", err);
       }
@@ -212,7 +221,7 @@ export function CollaborationScreen() {
       }]);
     });
 
-    // Check connection status
+    // Check connection status - if not connected, try to connect
     if (!socket.connected) {
       console.log("Socket not connected, attempting to connect...");
       socket.connect();
@@ -222,7 +231,7 @@ export function CollaborationScreen() {
     }
 
     return () => {
-      // Clean up event listeners
+      // Clean up event listeners to prevent duplicates on re-render
       socket.off("receiveMessage");
       socket.off("userJoined");
       socket.off("userLeft");
@@ -267,7 +276,7 @@ export function CollaborationScreen() {
       const roomId = selectedCollab._id;
       console.log('Joining room with ID:', roomId, 'as user:', username);
       
-      // Join the room using the format from page.tsx
+      // Join the room using the format from page.tsx - with explicit event name
       socket.emit("joinRoom", roomId, username);
       console.log(`Emitted joinRoom event with roomId: ${roomId}, username: ${username}`);
       
@@ -286,7 +295,7 @@ export function CollaborationScreen() {
       if (socketRef.current) {
         const roomId = selectedCollab._id;
         console.log(`Leaving room: ${roomId}`);
-        socketRef.current.emit('leaveRoom');
+        socketRef.current.emit('leaveRoom'); // Make sure this matches server's expected event
       }
     };
   }, [selectedCollab, username, socketConnected]);
@@ -425,9 +434,22 @@ export function CollaborationScreen() {
     
     console.log('Sending message with data:', messageData);
     
-    // Send to server
+    // Send to server - with explicit event name
     socket.emit('sendMessage', messageData);
     console.log('Emitted sendMessage event with data:', messageData);
+    
+    // Add the message locally unless we're receiving all sent messages back
+    // In some cases, servers broadcast to all clients including sender, in which case we DON'T need this
+    // Uncomment if messages are not showing up from the server broadcast
+    /*
+    const localMessage = {
+      sender: username,
+      message: messageText.trim(),
+      timestamp: new Date().toISOString()
+    };
+    
+    setMessages(prev => [...prev, localMessage]);
+    */
     
     // Clear input field
     setMessageText('');
