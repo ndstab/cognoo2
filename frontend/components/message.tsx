@@ -2,7 +2,6 @@
 
 import { StreamableValue, useStreamableValue } from 'ai/rsc'
 import { MemoizedReactMarkdown } from './ui/markdown'
-import { TextToSpeech } from './text-to-speech'
 
 export function BotMessage({
   content
@@ -19,7 +18,6 @@ export function BotMessage({
       <MemoizedReactMarkdown className="prose-sm prose-neutral prose-a:text-accent-foreground/50 w-full">
         {data}
       </MemoizedReactMarkdown>
-      <TextToSpeech text={data || ''} />
     </div>
   )
 }

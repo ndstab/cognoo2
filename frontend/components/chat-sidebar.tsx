@@ -4,17 +4,15 @@ import { useState, useEffect } from 'react'
 import { useUIState, useAIState } from 'ai/rsc'
 import type { AI } from '@/app/action'
 import { Button } from './ui/button'
-import { Search, History, User, Settings, MessageSquare, Users, Globe } from 'lucide-react'
+import { Search, History, User, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserProfile } from './user-profile'
 import { UserSearch } from './user-search'
-import { CollaborationScreen } from './collaboration-screen'
 
 export function ChatSidebar() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [userProfileOpen, setUserProfileOpen] = useState(false)
   const [userSearchOpen, setUserSearchOpen] = useState(false)
-  const [collaborationOpen, setCollaborationOpen] = useState(false)
   const [messages] = useUIState<typeof AI>()
   
   interface Conversation {
@@ -51,26 +49,16 @@ export function ChatSidebar() {
     setConversations([...groupedConversations, ...storedHistory].sort((a, b) => b.id - a.id) as Conversation[])
   }, [messages])
 
-  // Handle sidebar button clicks
-  const handleUsersClick = () => {
-    setCollaborationOpen(!collaborationOpen)
-    setUserProfileOpen(false)
-    setHistoryOpen(false)
-    setUserSearchOpen(false)
-  }
-
   const handleHistoryClick = () => {
     setHistoryOpen(!historyOpen)
     setUserProfileOpen(false)
     setUserSearchOpen(false)
-    setCollaborationOpen(false)
   }
 
   const handleProfileClick = () => {
     setUserProfileOpen(!userProfileOpen)
     setHistoryOpen(false)
     setUserSearchOpen(false)
-    setCollaborationOpen(false)
   }
 
   return (
@@ -90,31 +78,16 @@ export function ChatSidebar() {
         >
           <User size={20} />
         </Button>
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={handleUsersClick}
-        >
-          <Users size={20} />
-        </Button>
-        <Button variant="ghost" size="icon">
-          <Globe size={20} />
-        </Button>
-        <Button variant="ghost" size="icon">
-          <Settings size={20} />
-        </Button>
       </div>
 
       <div
         className={cn(
           'fixed left-16 top-0 h-full bg-background border-r transition-all duration-300 z-20',
-          historyOpen || userProfileOpen || userSearchOpen ? 'w-80' : 
-          collaborationOpen ? 'w-full' : 'w-0 border-0'
+          historyOpen || userProfileOpen || userSearchOpen ? 'w-80' : 'w-0 border-0'
         )}
       >
         {userProfileOpen && <UserProfile />}
         {userSearchOpen && <UserSearch />}
-        {collaborationOpen && <CollaborationScreen />}
         {historyOpen && (
           <div className="p-4 overflow-y-auto h-full">
             {conversations.map((conv: any) => (

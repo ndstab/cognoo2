@@ -102,7 +102,9 @@ export default function CollaboratePage() {
       /No images[\s\S]*?(?:provided\.|\n\n|$)/g,     // "No images provided" variations
       /\b(?:Image|Images)(?:\s+are)?\s+not\s+(?:available|provided)[\s\S]*?(?:\.|$)/g, // "Images are not available"
       /\bImages?\b[^.]*?\./g,                        // Any sentence containing "Image" or "Images"
-      /\n[^\n]*\bimages?\b[^\n]*\n/gi                // Any line containing image/images
+      /\n[^\n]*\bimages?\b[^\n]*\n/gi,
+      /!\[.*?]\(.*?\)/g,
+      /<img[^>]*>/g               // Any line containing image/images
     ];
     
     // Apply section-level patterns

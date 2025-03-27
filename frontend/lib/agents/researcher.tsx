@@ -13,7 +13,6 @@ import { SearchSkeleton } from '@/components/search-skeleton'
 import { SearchResults } from '@/components/search-results'
 import { BotMessage } from '@/components/message'
 import Exa from 'exa-js'
-import { SearchResultsImageSection } from '@/components/search-results-image'
 
 export async function researcher(
   uiStream: ReturnType<typeof createStreamableUI>,
@@ -57,32 +56,12 @@ export async function researcher(
           max_results: number
           search_depth: 'basic' | 'advanced'
         }) => {
-          uiStream.update(
-            <Section>
-              <ToolBadge tool="search">{`${query}`}</ToolBadge>
-            </Section>
-          )
-
-          uiStream.append(
-            <Section>
-              <SearchSkeleton />
-            </Section>
-          )
-
           const searchResult =
             searchAPI === 'tavily'
               ? await tavilySearch(query, max_results, search_depth)
               : await exaSearch(query)
 
           uiStream.update(
-            <Section title="Images">
-              <SearchResultsImageSection
-                images={searchResult.images}
-                query={searchResult.query}
-              />
-            </Section>
-          )
-          uiStream.append(
             <Section title="Sources">
               <SearchResults results={searchResult.results} />
             </Section>

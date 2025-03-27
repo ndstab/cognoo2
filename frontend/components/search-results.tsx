@@ -11,7 +11,6 @@ export interface SearchResultsProps {
 }
 
 export function SearchResults({ results }: SearchResultsProps) {
-  // State to manage whether to display the results
   const [showAllResults, setShowAllResults] = useState(false)
 
   const handleViewMore = () => {
@@ -22,48 +21,31 @@ export function SearchResults({ results }: SearchResultsProps) {
   const additionalResultsCount = results.length > 3 ? results.length - 3 : 0
 
   return (
-    <div className="flex flex-wrap">
+    <div className="flex flex-wrap gap-2 p-2">
       {displayedResults.map((result: any, index: any) => (
-        <div className="w-1/2 md:w-1/4 p-1" key={index}>
-          <Link href={result.url} passHref target="_blank">
-            <Card className="flex-1">
-              <CardContent className="p-2">
-                <p className="text-xs line-clamp-2">{result.content}</p>
-                <div className="mt-2 flex items-center space-x-2">
-                  <Avatar className="h-4 w-4">
-                    <AvatarImage
-                      src={`https://www.google.com/s2/favicons?domain=${
-                        new URL(result.url).hostname
-                      }`}
-                      alt={result.author}
-                    />
-                    <AvatarFallback>
-                      {new URL(result.url).hostname[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-xs opacity-60 truncate">
-                    {new URL(result.url).hostname}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
+        <Link href={result.url} passHref target="_blank" key={index} className="no-underline">
+          <div className="flex items-center gap-2 p-2 rounded-full bg-muted hover:bg-muted/80 transition-colors cursor-pointer">
+            <Avatar className="h-6 w-6">
+              <AvatarImage
+                src={`https://www.google.com/s2/favicons?domain=${new URL(result.url).hostname}`}
+                alt={result.title}
+              />
+              <AvatarFallback>{new URL(result.url).hostname[0]}</AvatarFallback>
+            </Avatar>
+            <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+              {new URL(result.url).hostname}
+            </span>
+          </div>
+        </Link>
       ))}
       {!showAllResults && additionalResultsCount > 0 && (
-        <div className="w-1/2 md:w-1/4 p-1">
-          <Card className="flex-1 flex h-full items-center justify-center">
-            <CardContent className="p-2">
-              <Button
-                variant={'link'}
-                className="text-muted-foreground"
-                onClick={handleViewMore}
-              >
-                View {additionalResultsCount} more
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <Button
+          variant="ghost"
+          className="rounded-full text-sm text-muted-foreground"
+          onClick={handleViewMore}
+        >
+          +{additionalResultsCount} more
+        </Button>
       )}
     </div>
   )

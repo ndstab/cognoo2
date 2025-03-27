@@ -2,7 +2,6 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { ModeToggle } from './mode-toggle'
 import { IconLogo } from './ui/icons'
 import { cn } from '@/lib/utils'
 import { Button } from './ui/button'
@@ -38,7 +37,6 @@ export const Header: React.FC = () => {
         >
           Collaborate
         </Button>
-        <ModeToggle />
       </div>
     </header>
   )
