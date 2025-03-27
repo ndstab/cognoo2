@@ -49,7 +49,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <Header />
-            <main className="pt-24">
+            <main className="pt-10">
               <AI>{children}</AI>
             </main>
           </ThemeProvider>

@@ -13,7 +13,10 @@ export function ChatMessages() {
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: isGenerating ? 'auto' : 'smooth', block: 'end' })
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'auto',  // Always use auto during generation for smoother streaming
+        block: 'end'
+      })
     }
   }
 
@@ -23,35 +26,57 @@ export function ChatMessages() {
     
     // Only update state if it's different to avoid unnecessary re-renders
     if (nextIsGenerating !== isGenerating) {
-      setIsGenerating(nextIsGenerating)
-      // Reset user scroll only when starting generation
+      setIsGenerating(Boolean(nextIsGenerating))
+      // Reset user scroll and force scroll to bottom when generation starts
       if (nextIsGenerating) {
         setUserScrolled(false)
+        scrollToBottom()
       }
     }
 
-    // Force scroll during generation or if user hasn't scrolled
+    // Always scroll during generation, or if user hasn't manually scrolled
     if (nextIsGenerating || !userScrolled) {
+      // Use requestAnimationFrame for smoother scrolling
       requestAnimationFrame(() => {
         scrollToBottom()
       })
     }
   }, [messages, isGenerating])
 
+  // Add a mutation observer to watch for content changes
+  useEffect(() => {
+    if (!messageContainerRef.current) return;
+
+    const observer = new MutationObserver((mutations) => {
+      if (isGenerating) {
+        scrollToBottom();
+      }
+    });
+
+    observer.observe(messageContainerRef.current, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+
+    return () => observer.disconnect();
+  }, [isGenerating]);
+
   return (
     <div 
       ref={messageContainerRef} 
-      className="flex flex-col space-y-4 overflow-y-auto"
+      className="flex flex-col space-y-4 overflow-y-auto scroll-smooth"
       onScroll={(e) => {
         const target = e.target as HTMLDivElement
-        const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 100
+        // Increase threshold for better scroll detection
+        const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 200
         setUserScrolled(!isAtBottom)
       }}
     >
       {messages.map((message: { id: number; component: React.ReactNode }) => (
         <div key={message.id}>{message.component}</div>
       ))}
-      <div ref={messagesEndRef} />
+      <div ref={messagesEndRef} className="h-4" />
     </div>
   )
 }
