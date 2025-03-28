@@ -74,3 +74,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* More specific selectors for agent images */
+img {
+  max-width: 500px !important;
+  max-height: 500px !important;
+}
+
+/* Target specific image classes that might be used */
+.avatar img, 
+.profile-image img,
+.user-avatar img,
+.agent-image img,
+.message img,
+.chat-avatar img {
+  max-width: 100px !important;
+  max-height: 100px !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Target any image inside a message container */
+div[class*="message"] img,
+div[class*="chat"] img {
+  max-width: 150px !important;
+  max-height: 150px !important;
+}
