@@ -235,7 +235,7 @@ export function ChatPanel() {
     ? 'fixed bottom-0 left-0 right-0 flex flex-col items-center justify-end pb-4 mx-auto'
     : 'fixed bottom-4 ml-6'
   return (
-    <div className={`${formPositionClass} z-10 pt-4`}>
+    <div className={`${formPositionClass} z-10`}>
       <form onSubmit={handleSubmit} className="max-w-2xl w-full px-6">
         <div className="relative flex items-center w-full">
           <Input
