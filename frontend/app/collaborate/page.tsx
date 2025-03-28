@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import io from "socket.io-client"
 import { BackgroundAnimation } from '@/components/background-animation'
 import { Card } from '@/components/ui/card'
-import { Send } from 'lucide-react'
+import { Send, ArrowLeft } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import ReactMarkdown from 'react-markdown'
 
@@ -19,13 +19,14 @@ const socket = io("http://localhost:3001", {
   reconnectionDelay: 1000
 });
 
-export default function CollaboratePage() {
+const CollaboratePage: React.FC = () => {
   const [roomId, setRoomId] = useState("")
   const [username, setUsername] = useState("")
   const [joined, setJoined] = useState(false)
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Array<{ sender: string; message: string }>>([])
   const messageBoxRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   // Join a chat room
   const joinRoom = () => {
@@ -105,7 +106,7 @@ export default function CollaboratePage() {
           <div className={`flex flex-col max-w-[75%] ${isAI ? 'mr-auto' : 'ml-auto'}`}>
             <div className="flex items-center mb-1">
               <Avatar className={`h-6 w-6 ${isAI ? 'mr-2' : 'ml-2 order-2'}`}>
-                <AvatarFallback>{isAI ? 'AI' : msg.sender[0]}</AvatarFallback>
+                <AvatarFallback>{isAI ? 'C' : msg.sender[0]}</AvatarFallback>
               </Avatar>
               <span className={`text-sm ${isAI ? '' : 'order-1 mr-2'}`}>{msg.sender}</span>
             </div>
@@ -156,73 +157,87 @@ export default function CollaboratePage() {
   return (
     <>
       <BackgroundAnimation />
-      <div className="flex flex-col items-center min-h-screen p-4 pt-16">
-        <h1 className="text-2xl font-bold mb-6">Collaborative Chat</h1>
-      
-      {!joined ? (
-        <Card className="w-full max-w-md p-6 space-y-4">
-          <h2 className="text-xl font-semibold text-center">Join a Chat Room</h2>
-          <div className="space-y-3">
-            <Input
-              type="text"
-              placeholder="Room ID"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              className="w-full"
-            />
-            <Input
-              type="text"
-              placeholder="Your Name"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full"
-            />
-            <Button 
-              onClick={joinRoom}
-              className="w-full"
-            >
-              Join Room
-            </Button>
-          </div>
-        </Card>
-      ) : (
-        <div className="w-full max-w-4xl flex flex-col h-[80vh]">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Room: {roomId}</h2>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                socket.disconnect()
-                setJoined(false)
-                setMessages([])
-              }}
-            >
-              Leave Room
-            </Button>
-          </div>
-          
-          <div 
-            ref={messageBoxRef}
-            className="flex-1 overflow-y-auto p-4 border rounded-lg mb-4"
+      <div className="relative min-h-screen">
+        <div className="fixed top-0 left-0 p-4 z-50">
+          <Button 
+            variant="ghost" 
+            onClick={() => router.push('/')}
+            className="flex items-center gap-2 hover:bg-background/10"
           >
-            {messages.map((msg, index) => renderMessage(msg, index))}
-          </div>
-          
-          <form onSubmit={sendMessage} className="flex gap-2">
-            <Input
-              type="text"
-              placeholder="Type your message..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="flex-1"
-            />
-            <Button type="submit">
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
+            <ArrowLeft className="h-5 w-5" />
+            Back to Personal Agent
+          </Button>
         </div>
-      )}
+        <div className="flex flex-col items-center min-h-screen p-4 pt-16">
+          <h1 className="text-2xl font-bold mb-6">Collaborative Chat</h1>
+      
+        {!joined ? (
+          <Card className="w-full max-w-md p-6 space-y-4">
+            <h2 className="text-xl font-semibold text-center">Join a Chat Room</h2>
+            <div className="space-y-3">
+              <Input
+                type="text"
+                placeholder="Room ID"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="w-full"
+              />
+              <Input
+                type="text"
+                placeholder="Your Name"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full"
+              />
+              <Button 
+                onClick={joinRoom}
+                className="w-full"
+              >
+                Join Room
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <div className="w-full max-w-4xl flex flex-col h-[80vh]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Room: {roomId}</h2>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  socket.disconnect()
+                  setJoined(false)
+                  setMessages([])
+                }}
+              >
+                Leave Room
+              </Button>
+            </div>
+            
+            <div 
+              ref={messageBoxRef}
+              className="flex-1 overflow-y-auto p-4 border rounded-lg mb-4"
+            >
+              {messages.map((msg, index) => renderMessage(msg, index))}
+            </div>
+            
+            <form onSubmit={sendMessage} className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Type your message..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit">
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        )}
+        </div>
       </div>
     </>
   )
 }
+
+export default CollaboratePage
