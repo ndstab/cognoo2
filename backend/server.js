@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
 const axios = require('axios');
-const WebSocket = require('ws');
 const cors = require('cors');
 const connectDB = require('./config/db');
 
@@ -12,31 +11,22 @@ dotenv.config();
 
 // Initialize OpenAI after environment variables are loaded
 const { OpenAI } = require('openai');
-const openai = new OpenAI();
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const app = express();
-app.use(cors());
-
 const server = http.createServer(app);
-
-// Initialize Socket.IO with production-ready settings
 const io = new Server(server, {
   cors: {
-    origin: "*", // As requested, allowing all origins for now
+    origin: "*",
     methods: ["GET", "POST"],
   },
-  pingTimeout: 60000, // 60 seconds
-  pingInterval: 25000, // 25 seconds
-  transports: ['websocket', 'polling'], // Enable both WebSocket and polling
-  allowUpgrades: true,
-  perMessageDeflate: {
-    threshold: 2048 // Only compress data above this size (in bytes)
-  }
 });
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
@@ -48,7 +38,7 @@ const roomMessages = {};
 io.on('connection', (socket) => {
   console.log('New client connected');
 
-  socket.on('joinRoom', (roomId, username) => {
+  socket.on('join_room', (roomId, username) => {
     socket.join(roomId);
     if (!rooms[roomId]) {
       rooms[roomId] = new Set();
@@ -57,13 +47,13 @@ io.on('connection', (socket) => {
     rooms[roomId].add(username);
     
     // Notify room about new user
-    io.to(roomId).emit('userJoined', {
+    io.to(roomId).emit('user_joined', {
       username,
       users: Array.from(rooms[roomId])
     });
   });
 
-  socket.on('leaveRoom', (roomId, username) => {
+  socket.on('leave_room', (roomId, username) => {
     socket.leave(roomId);
     if (rooms[roomId]) {
       rooms[roomId].delete(username);
@@ -71,7 +61,7 @@ io.on('connection', (socket) => {
         delete rooms[roomId];
         delete roomMessages[roomId];
       } else {
-        io.to(roomId).emit('userLeft', {
+        io.to(roomId).emit('user_left', {
           username,
           users: Array.from(rooms[roomId])
         });
@@ -79,7 +69,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('sendMessage', async (data) => {
+  socket.on('send_message', async (data) => {
     const { roomId, message, sender } = data;
     
     // Store message in room history
@@ -87,7 +77,7 @@ io.on('connection', (socket) => {
     roomMessages[roomId].push({ sender, message, timestamp: Date.now() });
     
     // Broadcast message to room
-    io.to(roomId).emit('receiveMessage', {
+    io.to(roomId).emit('receive_message', {
       sender,
       message,
       timestamp: Date.now()
@@ -96,7 +86,7 @@ io.on('connection', (socket) => {
     // Check if AI should respond
     try {
       if (await shouldAIRespond(message, roomId)) {
-        io.to(roomId).emit('aiTyping', true);
+        io.to(roomId).emit('ai_typing', true);
         
         try {
           const taskDecision = await taskManager(message, roomId);
@@ -107,7 +97,7 @@ io.on('connection', (socket) => {
           } else {
             // Get recent chat history for context
             const recentMessages = roomMessages[roomId]
-              ? roomMessages[roomId].slice(-5).map(m => `${m.sender}: ${m.message}`).join('\n')
+              ? roomMessages[roomId].slice(-3).map(m => `${m.sender}: ${m.message}`).join('\n')
               : '';
             
             const completion = await openai.chat.completions.create({
@@ -128,25 +118,25 @@ io.on('connection', (socket) => {
             aiResponse = completion.choices[0].message.content;
           }
           
-          io.to(roomId).emit('receiveMessage', {
+          io.to(roomId).emit('receive_message', {
             sender: 'Cogni',
             message: aiResponse,
             timestamp: Date.now()
           });
         } catch (error) {
           console.error('Error generating AI response:', error);
-          io.to(roomId).emit('receiveMessage', {
+          io.to(roomId).emit('receive_message', {
             sender: 'Cogni',
             message: 'I apologize, but I encountered an error while processing your message. Could you please try again?',
             timestamp: Date.now()
           });
         }
         
-        io.to(roomId).emit('aiTyping', false);
+        io.to(roomId).emit('ai_typing', false);
       }
     } catch (error) {
       console.error('Error in message processing:', error);
-      io.to(roomId).emit('aiTyping', false);
+      io.to(roomId).emit('ai_typing', false);
     }
   });
 
@@ -158,27 +148,34 @@ io.on('connection', (socket) => {
 // Function to check if AI should respond
 async function shouldAIRespond(message, roomId) {
   try {
-    // Basic checks first
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('cogni') ||
-        /^(what|who|when|where|why|how|can|could|would|will|should|is|are|do|does|did)/i.test(lowerMessage)) {
-      return true;
-    }
-
-    // Get recent chat history for context
+    // Get recent messages for context
     const recentMessages = roomMessages[roomId]
-      ? roomMessages[roomId].slice(-3)
-      : [];
+      ? roomMessages[roomId].slice(-3).map(m => `${m.sender}: ${m.message}`).join('\n')
+      : '';
 
     // If this is the first message in the room, respond
-    if (recentMessages.length === 0) return true;
+    if (!recentMessages) return true;
 
+    // Use LLM to determine if we should respond
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are an AI response analyzer. Your task is to determine if a message requires an AI response. Respond ONLY with 'true' or 'false'. Respond with 'true' if the message is a question, request for help, mentions AI, or seeks information/advice. Respond with 'false' for casual conversation or statements."
+          content: `You are an AI response analyzer for a group chat assistant named Cogni.
+          
+                    Your task is to determine if a message requires Cogni to respond. Consider:
+                    1. Is it a question or seeking information?
+                    2. Is it asking for help or assistance?
+                    3. Is it directed at an AI assistant (even implicitly)?
+                    4. Would a response add value to the conversation?
+                    5. Is it part of an ongoing conversation with Cogni?
+                    6. Is the user directly addressing Cogni?
+
+                    Respond with JSON only: {"respond": true} or {"respond": false}
+
+                    Context from recent chat:
+                    ${recentMessages}`
         },
         {
           role: "user",
@@ -186,12 +183,19 @@ async function shouldAIRespond(message, roomId) {
         }
       ],
       temperature: 0.3,
-      max_tokens: 5
+      max_tokens: 50,
+      response_format: { type: "json_object" }
     });
     
-    const response = completion.choices[0].message.content.toLowerCase().trim();
-    console.log(`AI Response Decision for '${message}': ${response}`);
-    return response === 'true';
+    try {
+      const response = JSON.parse(completion.choices[0].message.content);
+      console.log(`LLM Response Decision for '${message}': ${JSON.stringify(response)}`);
+      return response.respond === true;
+    } catch (e) {
+      console.error('Error parsing LLM response:', e);
+      // Default to responding if there's a parsing error
+      return true;
+    }
   } catch (error) {
     console.error('Error in AI decision:', error);
     // Default to responding if there's an error
@@ -200,7 +204,7 @@ async function shouldAIRespond(message, roomId) {
 }
 
 // Task Manager - Determine next steps
-async function taskManager(message, roomId) {
+async function taskManager(message) {
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -236,9 +240,9 @@ async function searchWeb(query) {
     const response = await axios.post('https://api.tavily.com/search', {
       api_key: process.env.TAVILY_API_KEY,
       query: query,
-      max_results: 5,
+      max_results: 3,   //INCREASE THIS IF YOU WANT TO GET MORE SEARCH RESULTS
       search_depth: 'advanced',
-      include_images: true,
+      include_images: false,
       include_answer: true,
       include_raw_content: false
     });
@@ -250,12 +254,7 @@ async function searchWeb(query) {
       throw new Error('No search results found');
     }
     
-    return response.data.results.map(result => ({
-      title: result.title || 'No title',
-      content: result.content || 'No content',
-      url: result.url || '#',
-      image: result.image || 'No image available' // Fallback for missing images
-    }));
+    return response.data
   } catch (error) {
     console.error('Error in web search:', error);
     console.error('Error details:', error.response ? error.response.data : error.message);
@@ -268,44 +267,66 @@ async function generateWithSearch(message, roomId) {
   try {
     // Perform web search
     const searchResults = await searchWeb(message);
-    
+    console.log("IM FUCKING HERE")
+    console.log(searchResults)
+    // Ensure searchResults exist
+    const searchAnswer = searchResults?.answer || '';
+    const searchTextResults = searchResults?.results || [];
     // Get chat history for context
-    const recentMessages = roomMessages[roomId]
-      ? roomMessages[roomId].slice(-5).map(m => `${m.sender}: ${m.message}`).join('\n')
-      : '';
-    
-    // Format search results for the AI - include explicit instructions to format response
-    const sources = searchResults.map(r => `- [${r.title}](${r.url})`).join('\n');
-    const images = searchResults
-      .filter(r => r.image && r.image !== 'No image available' && r.image.startsWith('http'))
-      .map(r => `![${r.title}](${r.image})`)
-      .join('\n');
-    
-    // Generate response with search context
+    const recentMessages = roomMessages[roomId]?.slice(-5)
+      .map(m => `${m.sender}: ${m.message}`)
+      .join('\n') || '';
+
+    // Extract text-based content from search results safely
+    const searchContext = searchTextResults.length
+      ? searchTextResults.map(r => r.content || "No relevant content found.").join('\n\n')
+      : "No relevant search context available.";
+
+    // Prepare source links separately
+    const sources = searchTextResults.length
+      ? searchTextResults.map(r => `- [${r.title}](${r.url})`).join('\n')
+      : "No sources available.";
+
+      // Generate response with search context
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are Cogni, a helpful AI assistant in a group chat. Format your response in this exact order: 1) Sources section with links, 2) Images section with markdown image tags, 3) Your detailed answer. Always include all images provided in your response using markdown image syntax. Always cite sources when using information from search results."
+          content: `You are Cogni, a helpful AI assistant in a group chat. Use the search context provided below to generate a high-quality response which encourages discussions. Make sure the response is formatted as follows:
+          - **Answer** :- 
+          {The Generated Answer}
+          - **Sources** :- 
+          {The Sources}
+          
+          - **PUT MORE EMPHASIS ON THE ANSWER GIVEN, AND ALSO INCLUDE BITS FROM THE SEARCH CONTEXT**
+          - **Go through the entire search context very thoroughly before generating any responses and keep the factual information in mind**
+          - **DO NOT mention that this information comes from a web search.**
+          - **DO NOT explicitly state that you used external sources.**
+          - **Use the provided text context naturally in your response.**
+          - **The final response must include a "Sources" section listing relevant links.**
+
+          Search Answer:
+          ${searchAnswer}
+          Search Context:
+          ${searchContext}
+          Sources:
+          ${sources}`
         },
         {
           role: "user",
-          content: `Chat history:\n${recentMessages}\n\nUser question: ${message}\n\nSources:\n${sources}\n\nImages:\n${images}`
+          content: `Chat history:\n${recentMessages}\n\nUser question: ${message}`
         }
       ],
-      temperature: 0.7,
-      max_tokens: 800
+      temperature: 1,
+      max_tokens: 1500
     });
-    
-    // Ensure images are included in the response
+
+    // Get AI response
     let aiResponse = completion.choices[0].message.content;
-    
-    // If the AI didn't include the images, add them manually
-    if (images && !aiResponse.includes('![')) {
-      aiResponse = `${images}\n\n${aiResponse}`;
-    }
-    
+    console.log(searchAnswer)
+    console.log(searchContext)
+    console.log(sources)
     return aiResponse;
   } catch (error) {
     console.error('Error generating with search:', error);
@@ -444,9 +465,4 @@ io.on("connection", (socket) => {
     }
     console.log(`User disconnected: ${socket.id}`);
   });
-});
-
-// Basic health check route
-app.get('/', (req, res) => {
-  res.send('Server is running');
 });
