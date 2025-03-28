@@ -7,12 +7,10 @@ import { Button } from './ui/button'
 import { Search, History, User, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserProfile } from './user-profile'
-import { UserSearch } from './user-search'
 
 export function ChatSidebar() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [userProfileOpen, setUserProfileOpen] = useState(false)
-  const [userSearchOpen, setUserSearchOpen] = useState(false)
   const [messages] = useUIState<typeof AI>()
   
   interface Conversation {
@@ -52,13 +50,11 @@ export function ChatSidebar() {
   const handleHistoryClick = () => {
     setHistoryOpen(!historyOpen)
     setUserProfileOpen(false)
-    setUserSearchOpen(false)
   }
 
   const handleProfileClick = () => {
     setUserProfileOpen(!userProfileOpen)
     setHistoryOpen(false)
-    setUserSearchOpen(false)
   }
 
   return (
@@ -83,11 +79,10 @@ export function ChatSidebar() {
       <div
         className={cn(
           'fixed left-16 top-0 h-full bg-background border-r transition-all duration-300 z-20',
-          historyOpen || userProfileOpen || userSearchOpen ? 'w-80' : 'w-0 border-0'
+          historyOpen || userProfileOpen ? 'w-80' : 'w-0 border-0'
         )}
       >
         {userProfileOpen && <UserProfile />}
-        {userSearchOpen && <UserSearch />}
         {historyOpen && (
           <div className="p-4 overflow-y-auto h-full">
             {conversations.map((conv: any) => (
@@ -100,7 +95,7 @@ export function ChatSidebar() {
                 ) : (
                   <MessageSquare size={16} className="text-muted-foreground" />
                 )}
-                <div className="flex-1 truncate text-sm">
+                <div className="flex-1 truncate text-lg">
                   {conv.messages[0].component?.props?.message ||
                     'Conversation ' + conv.timestamp}
                 </div>
