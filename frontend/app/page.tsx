@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { BackgroundAnimation } from '@/components/background-animation'
 import { Chat } from '@/components/chat'
 import { Button } from '@/components/ui/button'
+import Image from 'next/image'
 
 export default function Page() {
   const router = useRouter()
@@ -83,10 +84,13 @@ export default function Page() {
           <div className="flex-1" /> {/* Spacer */}
           <div className="flex flex-col items-center">
             <a href="/">
-              <img 
+              <Image 
                 src="/cogni-logo.png" 
-                alt="Cogni" 
+                alt="Cogni Logo"
+                width={80}
+                height={80}
                 className="h-16 md:h-20 w-auto"
+                priority
               />
             </a>
           </div>

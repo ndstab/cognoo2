@@ -9,6 +9,15 @@ import { jwtDecode } from 'jwt-decode'
 import { io, Socket } from 'socket.io-client'
 import { Avatar, AvatarFallback } from './ui/avatar'
 import ReactMarkdown from 'react-markdown'
+import Image from 'next/image'
+
+// Define the interface at the component's top level
+interface SimpleDecodedToken {
+  userId?: string;
+  username?: string;
+  email?: string;
+  [key: string]: any;
+}
 
 interface Collaboration {
   _id: string
@@ -46,14 +55,6 @@ interface Message {
   message: string;
   timestamp?: string;
   isAI?: boolean;
-}
-
-interface DecodedToken {
-  userId: string
-  username: string
-  email: string
-  iat: number
-  exp: number
 }
 
 // Socket server URL - pointing to backend socket server
@@ -236,7 +237,7 @@ export function CollaborationScreen() {
       socket.off("userJoined");
       socket.off("userLeft");
     };
-  }, [selectedCollab]); // Re-initialize listeners when selected collaboration changes
+  }, [selectedCollab, username, messages, socketConnected]);
 
   // Join collaboration room when selecting a collaboration
   useEffect(() => {
@@ -318,6 +319,7 @@ export function CollaborationScreen() {
 
   // Fetch user data from profile as soon as component mounts
   useEffect(() => {
+    // Interface is now defined outside
     const fetchUserProfile = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -332,7 +334,7 @@ export function CollaborationScreen() {
         
         // First try to extract from token
         try {
-          const decoded = jwtDecode<DecodedToken>(token);
+          const decoded = jwtDecode<SimpleDecodedToken>(token); // Use the top-level interface
           console.log('Token decoded successfully:', decoded);
           
           if (decoded.username) {
@@ -457,39 +459,37 @@ export function CollaborationScreen() {
 
   const searchUsers = async () => {
     if (!userSearchTerm.trim()) return;
-    
     setLoading(true);
     setError('');
+
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        setError('Please log in to search users');
-        return;
+        throw new Error('Authentication token not found');
       }
 
-      const response = await fetch(`/api/users/search?username=${encodeURIComponent(userSearchTerm)}`, {
+      const response = await fetch(`/api/users/search?q=${userSearchTerm}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to search users');
-      }
-      
       const data = await response.json();
-      
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to search users');
+      }
+
       // Filter out the current user from search results
-      const decoded = jwtDecode<DecodedToken>(token);
+      const decoded = jwtDecode<SimpleDecodedToken>(token); // Use the top-level interface
       const filteredUsers = data.users.filter((user: User) => 
         user.id !== decoded.userId
       );
-      
+
       setSearchResults(filteredUsers);
     } catch (err: any) {
       console.error('Error searching users:', err);
       setError(err.message || 'Failed to search users');
+      setSearchResults([]); // Clear results on error
     } finally {
       setLoading(false);
     }
@@ -583,9 +583,9 @@ export function CollaborationScreen() {
           <div className={`flex flex-col max-w-[75%] ${isAI ? 'mr-auto' : 'ml-auto'}`}>
             <div className="flex items-center mb-1">
               <Avatar className={`h-6 w-6 ${isAI ? 'mr-2' : 'ml-2 order-2'}`}>
-                <AvatarFallback>{isAI ? 'AI' : msg.sender[0]}</AvatarFallback>
+                <AvatarFallback>{isAI ? 'AI' : msg.sender?.[0] || 'U'}</AvatarFallback>
               </Avatar>
-              <span className={`text-sm ${isAI ? '' : 'order-1 mr-2'}`}>{msg.sender}</span>
+              <span className={`text-sm ${isAI ? '' : 'order-1 mr-2'}`}>{msg.sender || 'Unknown'}</span>
             </div>
             <div className={`rounded-lg p-3 ${isAI ? 'bg-gray-700 text-white' : 'bg-muted'} overflow-hidden`}>
               {isAI ? (
@@ -595,18 +595,32 @@ export function CollaborationScreen() {
                     pre: ({node, ...props}) => (
                       <pre {...props} className="p-2 rounded-md bg-gray-800 overflow-x-auto" />
                     ),
-                    img: ({node, ...props}) => (
-                      <div className="my-4 flex justify-center">
-                        <img
-                          {...props}
-                          className="max-w-full h-auto rounded-lg shadow-lg"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none'
-                          }}
-                        />
-                      </div>
-                    ),
+                    img: ({node, src, alt, width: mdWidth, height: mdHeight, ...props}) => {
+                      if (!src) {
+                        console.warn("Image in markdown missing src attribute");
+                        return <span className="text-red-500 text-xs">[Image missing source]</span>;
+                      }
+                      const width = typeof mdWidth === 'string' ? parseInt(mdWidth, 10) : (typeof mdWidth === 'number' ? mdWidth : 500);
+                      const height = typeof mdHeight === 'string' ? parseInt(mdHeight, 10) : (typeof mdHeight === 'number' ? mdHeight : 300);
+
+                      return (
+                        <div className="my-4 flex justify-center">
+                          <Image
+                            src={src}
+                            alt={alt || 'Collaborative content image'}
+                            width={isNaN(width) ? 500 : width}
+                            height={isNaN(height) ? 300 : height}
+                            className="max-w-full h-auto rounded-lg shadow-lg object-contain"
+                            loading="lazy"
+                            onError={(e) => {
+                              console.error("Error loading image:", src);
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                            {...props}
+                          />
+                        </div>
+                      );
+                    },
                     p: ({node, ...props}) => (
                       <p {...props} className="mb-2 last:mb-0" />
                     ),

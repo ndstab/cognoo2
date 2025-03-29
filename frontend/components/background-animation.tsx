@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 
-export function BackgroundAnimation() {
+export const BackgroundAnimation = () => {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
+    const currentRef = containerRef.current; // Store ref value inside effect
+    if (!currentRef) return;
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x000000)
@@ -19,7 +20,7 @@ export function BackgroundAnimation() {
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(window.innerWidth, window.innerHeight)
     renderer.setPixelRatio(window.devicePixelRatio)
-    containerRef.current.appendChild(renderer.domElement)
+    currentRef.appendChild(renderer.domElement)
 
     const stars: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>[] = []
     const numStars = 600
@@ -85,26 +86,49 @@ export function BackgroundAnimation() {
 
     animate()
 
+    // Handle resize
     const handleResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight
+      if (!currentRef) return; // Use stored value
+      camera.aspect = currentRef.clientWidth / currentRef.clientHeight
       camera.updateProjectionMatrix()
-      renderer.setSize(window.innerWidth, window.innerHeight)
+      renderer.setSize(currentRef.clientWidth, currentRef.clientHeight)
     }
 
     window.addEventListener('resize', handleResize)
 
+    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
+      if (currentRef && renderer.domElement) { // Use stored value
+        currentRef.removeChild(renderer.domElement)
+      }
+      // Dispose Three.js objects
+      scene.traverse(object => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose()
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => material.dispose())
+          } else {
+            object.material.dispose()
+          }
+        }
+      })
       renderer.dispose()
-      containerRef.current?.removeChild(renderer.domElement)
     }
-  }, [])
+  }, []) // Keep dependency array empty as the effect should run only once on mount
 
   return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 -z-10"
-      style={{ pointerEvents: 'none' }}
+    <div 
+      ref={containerRef} 
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        width: '100%', 
+        height: '100%', 
+        zIndex: -1, 
+        overflow: 'hidden' 
+      }}
     />
   )
 }

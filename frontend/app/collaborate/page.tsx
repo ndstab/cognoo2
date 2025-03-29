@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Send, ArrowLeft } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import ReactMarkdown from 'react-markdown'
+import Image from 'next/image'
 
 // Socket connection
 const socket = io("https://cogniwebsocket.centralindia.cloudapp.azure.com", {
@@ -118,18 +119,32 @@ const CollaboratePage: React.FC = () => {
                     pre: ({node, ...props}) => (
                       <pre {...props} className="p-2 rounded-md bg-gray-800 overflow-x-auto" />
                     ),
-                    img: ({node, ...props}) => (
-                      <div className="my-4 flex justify-center">
-                        <img
-                          {...props}
-                          className="max-w-full h-auto rounded-lg shadow-lg"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
-                          }}
-                        />
-                      </div>
-                    ),
+                    img: ({node, src, alt, width: mdWidth, height: mdHeight, ...props}) => {
+                      if (!src) {
+                        console.warn("Image in markdown missing src attribute");
+                        return <span className="text-red-500 text-xs">[Image missing source]</span>;
+                      }
+                      const width = typeof mdWidth === 'string' ? parseInt(mdWidth, 10) : (typeof mdWidth === 'number' ? mdWidth : 500);
+                      const height = typeof mdHeight === 'string' ? parseInt(mdHeight, 10) : (typeof mdHeight === 'number' ? mdHeight : 300);
+
+                      return (
+                        <div className="my-4 flex justify-center">
+                          <Image
+                            src={src}
+                            alt={alt || 'Collaborative content image'}
+                            width={isNaN(width) ? 500 : width}
+                            height={isNaN(height) ? 300 : height}
+                            className="max-w-full h-auto rounded-lg shadow-lg object-contain"
+                            loading="lazy"
+                            onError={(e) => {
+                              console.error("Error loading image:", src);
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                            {...props}
+                          />
+                        </div>
+                      );
+                    },
                     p: ({node, ...props}) => (
                       <p {...props} className="mb-2 last:mb-0" />
                     ),

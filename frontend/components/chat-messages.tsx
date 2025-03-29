@@ -41,7 +41,7 @@ export function ChatMessages() {
         scrollToBottom()
       })
     }
-  }, [messages, isGenerating])
+  }, [messages, isGenerating, userScrolled])
 
   // Add a mutation observer to watch for content changes
   useEffect(() => {
