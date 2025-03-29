@@ -5,95 +5,31 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card } from './ui/card'
 import { Label } from './ui/label'
-import { useRouter } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 
 export function UserProfile() {
-  const router = useRouter()
+  const { data: session, status } = useSession()
+
   const [userDetails, setUserDetails] = useState({
     username: '',
     email: '',
   })
-  const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  // Add safe localStorage access
-  const getLocalStorageItem = (key: string): string | null => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(key)
-    }
-    return null
-  }
-
-  // Fetch user data from the database
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setLoading(true)
-        // Get token from localStorage
-        const token = getLocalStorageItem('token')
-        
-        if (!token) {
-          // Check if there's a user object that might contain the token
-          const userStr = getLocalStorageItem('user')
-          if (userStr) {
-            try {
-              const user = JSON.parse(userStr)
-              if (user.token) {
-                // Use the token from the user object
-                fetchWithToken(user.token)
-                return
-              }
-            } catch (e) {
-              console.error('Error parsing user data:', e)
-            }
-          }
-          
-          setError('Not authenticated. Please log in.')
-          setLoading(false)
-          return
-        }
-
-        fetchWithToken(token)
-      } catch (err) {
-        console.error('Error fetching user data:', err)
-        setError('Failed to load user profile')
-        setLoading(false)
-      }
+    if (status === 'authenticated' && session?.user) {
+      setUserDetails({
+        username: session.user.name ?? '',
+        email: session.user.email ?? '',
+      })
+      setError('')
+    } else if (status === 'unauthenticated') {
+      setError('Not authenticated. Please log in.')
     }
+    setMessage('')
+  }, [session, status])
 
-    const fetchWithToken = async (token: string) => {
-      try {
-        console.log('Fetching with token:', token)
-        const response = await fetch('/api/users/profile', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-    
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.message || 'Failed to fetch user data')
-        }
-    
-        const data = await response.json()
-        setUserDetails({
-          username: data.user.username,
-          email: data.user.email,
-        })
-        setLoading(false)
-      } catch (err) {
-        console.error('Error in fetchWithToken:', err)
-        setError((err as Error).message || 'Failed to load user profile')
-        setLoading(false)
-      }
-    }
-
-    fetchUserData()
-  }, [])
-
-  // Define the handleInputChange function
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setUserDetails(prev => ({
@@ -107,48 +43,53 @@ export function UserProfile() {
       setMessage('')
       setError('')
       
-      const token = getLocalStorageItem('token')
-      if (!token) {
+      if (status !== 'authenticated' || !session?.user?.id) {
         setError('Not authenticated. Please log in.')
         return
       }
+
+      const payload = {
+        username: userDetails.username
+      }
+
+      console.warn("Attempting to save profile. Ensure the '/api/users/profile' PUT endpoint uses NextAuth session for authentication.")
 
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(userDetails)
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update profile and parse error response.' }))
         throw new Error(errorData.message || 'Failed to update profile')
       }
 
-      setMessage('Profile updated successfully!')
-      setTimeout(() => setMessage(''), 3000)
+      setMessage('Profile update attempted. Verify backend implementation.')
+      setTimeout(() => setMessage(''), 5000)
     } catch (err) {
       console.error('Failed to save profile:', err)
       setError((err as Error).message || 'Failed to update profile')
     }
   }
 
-  // Add a logout function
   const handleLogout = () => {
     signOut({ callbackUrl: '/auth' })
+  }
+
+  if (status === 'loading') {
+    return <div className="p-6 text-center"><p>Loading session...</p></div>
   }
 
   return (
     <div className="p-6 overflow-y-auto h-full">
       <h2 className="text-2xl font-bold mb-6">User Profile</h2>
       
-      {loading ? (
-        <p className="text-center">Loading profile...</p>
-      ) : error ? (
-        <div className="text-red-500 mb-4">{error}</div>
-      ) : (
+      {status === 'unauthenticated' || error ? (
+        <div className="text-red-500 mb-4">{error || 'Please log in to view your profile.'}</div>
+      ) : status === 'authenticated' ? (
         <Card className="p-6 space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
@@ -171,7 +112,7 @@ export function UserProfile() {
                 value={userDetails.email}
                 onChange={handleInputChange}
                 placeholder="Enter your email"
-                disabled // Email should typically not be changed easily
+                disabled
               />
             </div>
 
@@ -179,6 +120,7 @@ export function UserProfile() {
               className="w-full" 
               type="button"
               onClick={handleSaveChanges}
+              disabled={status !== 'authenticated'}
             >
               Save Changes
             </Button>
@@ -189,12 +131,13 @@ export function UserProfile() {
               onClick={handleLogout}
               className="w-full mt-4"
               variant="destructive"
+              disabled={status !== 'authenticated'}
             >
               Logout
             </Button>
           </div>
         </Card>
-      )}
+      ) : null}
     </div>
   )
 }
