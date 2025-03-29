@@ -140,7 +140,7 @@ async function tavilySearch(
       query,
       max_results: maxResults < 2 ? 2 : Math.min(maxResults, 3),
       search_depth: 'basic',
-      include_images: true,
+      include_images: false,
       include_answers: false
     })
   })
