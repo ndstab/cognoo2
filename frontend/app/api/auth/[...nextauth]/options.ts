@@ -1,6 +1,8 @@
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { NextAuthOptions } from "next-auth"
+import connectDB from '@/config/db'
+import User from '@/models/User'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -31,15 +33,15 @@ export const authOptions: NextAuthOptions = {
           
           if (response.ok && data.user) {
             return {
-              id: data.user.id,
+              id: data.user._id,
               email: data.user.email,
-              name: data.user.email.split('@')[0],
+              name: data.user.username,
             }
           }
           
           return null
         } catch (error) {
-          console.error("Auth error:", error)
+          console.error("Credentials Auth error:", error)
           return null
         }
       },
@@ -53,6 +55,41 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "google") {
+        if (!profile?.email || !profile?.name) {
+          console.error("Google profile missing email or name");
+          return false;
+        }
+
+        try {
+          await connectDB();
+          
+          let existingUser = await User.findOne({ email: profile.email });
+
+          if (!existingUser) {
+            console.log(`Creating new Google user: ${profile.email}`);
+            existingUser = await User.create({
+              email: profile.email,
+              username: profile.name,
+              provider: "google",
+            });
+          } else if (existingUser.provider !== 'google') {
+             console.warn(`User ${profile.email} exists with provider ${existingUser.provider}, logging in via Google.`);
+          }
+
+          user.id = existingUser._id.toString();
+          user.name = existingUser.username;
+          user.email = existingUser.email;
+
+          return true;
+        } catch (error) {
+          console.error("Error during Google sign-in DB interaction:", error);
+          return false;
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
@@ -60,7 +97,7 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.id) {
         session.user.id = token.id as string
       }
       return session
