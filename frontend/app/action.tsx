@@ -7,7 +7,7 @@ import {
     createStreamableValue,
     getMutableAIState
   } from 'ai/rsc'
-  import { ExperimentalMessage } from 'ai'
+  import { CoreMessage } from 'ai'
   import { Spinner } from '@/components/ui/spinner'
   import { inquire, researcher, taskManager, querySuggestor } from '@/lib/agents'
   
@@ -18,7 +18,7 @@ import {
     const uiStream = createStreamableUI()
     const isGenerating = createStreamableValue(true)
   
-    const messages: ExperimentalMessage[] = aiState.get() as any
+    const messages: CoreMessage[] = aiState.get() as any
     // Get the user input from the form data
     const userInput = skip
       ? `{"action": "skip"}`
@@ -31,7 +31,7 @@ import {
     // Add the user message to the state
     if (content) {
       const message = { role: 'user', content }
-      messages.push(message as ExperimentalMessage)
+      messages.push(message as CoreMessage)
       aiState.update([...(aiState.get() as any), message])
     }
   
