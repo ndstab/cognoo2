@@ -101,7 +101,6 @@ export const Copilot: React.FC<CopilotProps> = ({ inquiry }: CopilotProps) => {
     return (
       <Card className="p-3 md:p-4 w-full flex justify-between items-center">
         <div className="flex items-center space-x-2 flex-1 min-w-0">
-          <Spinner/>
           <h5 className="text-muted-foreground text-xs truncate">
             {updatedQuery()}
           </h5>
@@ -113,7 +112,6 @@ export const Copilot: React.FC<CopilotProps> = ({ inquiry }: CopilotProps) => {
     return (
       <Card className="p-4 rounded-lg w-full mx-auto">
         <div className="flex items-center mb-4">
-          <Spinner />
           <p className="text-lg text-foreground text-semibold ml-2">
             {data?.question}
           </p>
