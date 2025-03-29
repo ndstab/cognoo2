@@ -8,13 +8,60 @@ export async function inquire(
   uiStream: ReturnType<typeof createStreamableUI>,
   messages: CoreMessage[]
 ) {
+  // --- Check if an inquiry has already happened ---
+  let alreadyInquired = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role === 'assistant') {
+      let contentText = '';
+      // Extract text content, handling string or array format
+      if (typeof message.content === 'string') {
+        contentText = message.content;
+      } else if (Array.isArray(message.content)) {
+        const textPart = message.content.find(part => part.type === 'text');
+        if (textPart) {
+          contentText = textPart.text.trim();
+        }
+      }
+
+      // Check if the content looks like the JSON inquiry structure
+      if (contentText.startsWith('{') && contentText.endsWith('}')) {
+        try {
+          const potentialInquiry = JSON.parse(contentText);
+          // Check for core properties of the inquiry schema
+          if (potentialInquiry.question && Array.isArray(potentialInquiry.options)) {
+            console.log("Detected a previous inquiry message based on JSON structure.");
+            alreadyInquired = true;
+            break; // Found a prior inquiry, no need to check further back
+          }
+        } catch (e) {
+          // Content looked like JSON but failed to parse or didn't match schema. Ignore and continue checking.
+        }
+      }
+      // Optional: Stop checking after the first assistant message if needed
+      // break;
+    }
+  }
+
+  if (alreadyInquired) {
+    console.log("Skipping inquiry because a previous one was detected.");
+    // Ensure the UI stream is cleared or completed if it was potentially updated before
+    // Depending on how the caller handles it, updating with null might be appropriate
+    // uiStream.update(null); // Or uiStream.done();
+    return {}; // Return empty object to signal no new inquiry
+  }
+  // --- End Check ---
+
+  // --- Proceed with inquiry generation if none was detected ---
   const openai = createOpenAI({
     baseUrl: process.env.OPENAI_API_BASE, // optional base URL for proxies etc.
     apiKey: process.env.OPENAI_API_KEY, // optional API key, default to env property OPENAI_API_KEY
     organization: '' // optional organization
   })
+
+  // Create streamables *only* if we are proceeding
   const objectStream = createStreamableValue<PartialInquiry>()
-  uiStream.update(<Copilot inquiry={objectStream.value} />)
+  uiStream.update(<Copilot inquiry={objectStream.value} />) // Update UI to show Copilot pending
 
   let finalInquiry: PartialInquiry = {}
   await streamObject({
@@ -67,6 +114,13 @@ export async function inquire(
     .finally(() => {
       objectStream.done()
     })
+
+  // If the final inquiry is empty (meaning the model decided not to ask anything),
+  // clear the copilot UI.
+  if (Object.keys(finalInquiry).length === 0) {
+     uiStream.update(null);
+  }
+
 
   return finalInquiry
 }

@@ -36,7 +36,9 @@ export async function researcher(
       system: `As a concise search expert, provide brief but accurate responses using minimal web sources.
       Focus on the most relevant information from a maximum of 2 sources.
       Include only the most pertinent images if available.
-      Keep responses direct and to the point, citing sources when necessary.
+      Keep responses direct and to the point.
+      IMPORTANT: Do NOT include URLs or Markdown links like [text](url) directly in your answer text. 
+      IMPORTANT: Also, do NOT include any section titled 'Sources' or list source names/titles within your written response text. The sources are handled separately by the system and displayed in a dedicated section.
       `,
       messages,
       tools: {
