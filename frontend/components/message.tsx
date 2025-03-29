@@ -2,6 +2,7 @@
 
 import { StreamableValue, useStreamableValue } from 'ai/rsc'
 import { MemoizedReactMarkdown } from './ui/markdown'
+import { cn } from '@/lib/utils'
 
 export function BotMessage({
   content
@@ -13,7 +14,7 @@ export function BotMessage({
   if (error) {
     console.error('Streaming error:', error)
     return (
-      <div className="flex items-center gap-2 w-full text-red-500">
+      <div className="flex items-start gap-2 w-full text-red-500 min-h-[3rem]">
         <p>An error occurred while streaming the response. Please try again.</p>
       </div>
     )
@@ -21,14 +22,17 @@ export function BotMessage({
 
   if (pending && !data) {
     return (
-      <div className="flex items-center gap-2 w-full">
-        <div className="animate-pulse">Loading...</div>
+      <div className="flex items-start gap-2 w-full min-h-[3rem]">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2 w-full">
+    <div className={cn(
+      "flex items-start gap-2 w-full",
+      pending && data ? "min-h-[3rem]" : ""
+    )}>
       <MemoizedReactMarkdown className="prose-sm prose-neutral prose-a:text-accent-foreground/50 w-full">
         {data || ''}
       </MemoizedReactMarkdown>
