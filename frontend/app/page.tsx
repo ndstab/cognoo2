@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { BackgroundAnimation } from '@/components/background-animation'
 import { Chat } from '@/components/chat'
+import { Button } from '@/components/ui/button'
 
 export default function Page() {
   const router = useRouter()
@@ -77,7 +78,33 @@ export default function Page() {
   return (
     <>
       <BackgroundAnimation />
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto">
+        <div className="flex justify-between items-start">
+          <div className="flex-1" /> {/* Spacer */}
+          <div className="flex flex-col items-center">
+            <a href="/">
+              <img 
+                src="/cogni-logo.png" 
+                alt="Cogni" 
+                className="h-16 md:h-20 w-auto"
+              />
+            </a>
+          </div>
+          <div className="flex-1 flex justify-end mt-8">
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/collaborate')}
+              className="rounded-full w-10 h-10 p-0 flex items-center justify-center 
+                         sm:w-auto sm:h-auto sm:rounded-md sm:px-4 sm:py-2 
+                         bg-gradient-to-r from-green-300 to-teal-400 border-none 
+                         hover:from-green-400 hover:to-teal-500 transition-all duration-300 
+                         text-zinc-900 font-medium hover:text-white"
+            >
+              <span className="sm:hidden text-lg font-bold">C</span> {/* Show 'C' on small screens */}
+              <span className="hidden sm:block">Collaborate</span> {/* Show 'Collaborate' on larger screens */}
+            </Button>
+          </div>
+        </div>
         <Chat />
       </div>
     </>

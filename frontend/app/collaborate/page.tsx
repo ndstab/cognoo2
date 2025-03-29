@@ -165,7 +165,6 @@ const CollaboratePage: React.FC = () => {
             className="flex items-center gap-2 hover:bg-background/10"
           >
             <ArrowLeft className="h-5 w-5" />
-            Back to Personal Agent
           </Button>
         </div>
         <div className="flex flex-col items-center min-h-screen p-4 pt-16">

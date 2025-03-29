@@ -144,7 +144,7 @@ export function ChatPanel() {
   // If there are messages and the new button has not been pressed, display the new Button
   if (messages.length > 0 && !isButtonPressed) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 flex flex-col justify-center items-center mx-auto space-y-2 z-[5] bg-background/80 backdrop-blur-sm border-t p-2">
+      <div className="fixed bottom-0 left-0 right-0 flex flex-col justify-center items-center mx-auto space-y-2 z-50 p-2">
         <form onSubmit={handleSubmit} className="max-w-2xl w-full px-6">
           <div className="relative flex items-center w-full">
             <Input
@@ -153,7 +153,7 @@ export function ChatPanel() {
               name="input"
               placeholder="Ask a follow-up question..."
               value={input}
-              className="pl-4 pr-24 h-12 rounded-full bg-muted"
+              className="pl-4 pr-24 h-12 rounded-full bg-muted text-sm sm:text-base"
               onChange={e => {
                 setInput(e.target.value)
                 setShowEmptyScreen(e.target.value.length === 0)
@@ -161,13 +161,13 @@ export function ChatPanel() {
               onFocus={() => setShowEmptyScreen(true)}
               onBlur={() => setShowEmptyScreen(false)}
             />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 sm:space-x-2">
               <Button
                 type="button"
                 variant={"ghost"}
                 size={"icon"}
                 className={cn(
-                  "rounded-full",
+                  "rounded-full h-8 w-8 sm:h-10 sm:w-10",
                   isRecording && "text-red-500"
                 )}
                 onClick={() => {
@@ -183,7 +183,7 @@ export function ChatPanel() {
                   setIsRecording(!isRecording)
                 }}
               >
-                <Mic size={20} />
+                <Mic size={18} className="sm:w-5 sm:h-5" />
               </Button>
               <MiniNetworkButton
                 disabled={input.length === 0}
@@ -233,10 +233,11 @@ export function ChatPanel() {
   // Condition 1 and 3: If there are no messages or the button is pressed, display the form
   const formPositionClass = messages.length === 0
     ? 'fixed bottom-0 left-0 right-0 flex flex-col items-center justify-end pb-4 mx-auto'
-    : 'fixed bottom-4 ml-6'
+    : 'fixed bottom-4 left-4 right-4 md:left-6 md:right-6'
+
   return (
-    <div className={`${formPositionClass} z-10`}>
-      <form onSubmit={handleSubmit} className="max-w-2xl w-full px-6">
+    <div className={`${formPositionClass} z-50`}>
+      <form onSubmit={handleSubmit} className="w-full max-w-2xl px-4 sm:px-6">
         <div className="relative flex items-center w-full">
           <Input
             ref={inputRef}
@@ -244,7 +245,7 @@ export function ChatPanel() {
             name="input"
             placeholder="Ask a question..."
             value={input}
-            className="pl-4 pr-24 h-12 rounded-full bg-muted"
+            className="pl-4 pr-24 h-12 rounded-full bg-muted text-sm sm:text-base"
             onChange={e => {
               setInput(e.target.value)
               setShowEmptyScreen(e.target.value.length === 0)
@@ -252,13 +253,13 @@ export function ChatPanel() {
             onFocus={() => setShowEmptyScreen(true)}
             onBlur={() => setShowEmptyScreen(false)}
           />
-          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 sm:space-x-2">
             <Button
               type="button"
               variant={"ghost"}
               size={"icon"}
               className={cn(
-                "rounded-full",
+                "rounded-full h-8 w-8 sm:h-10 sm:w-10",
                 isRecording && "text-red-500"
               )}
               onClick={() => {
@@ -274,15 +275,16 @@ export function ChatPanel() {
                 setIsRecording(!isRecording)
               }}
             >
-              <Mic size={20} />
+              <Mic size={18} className="sm:w-5 sm:h-5" />
             </Button>
             <Button
               type="submit"
               size={"icon"}
               variant={"ghost"}
               disabled={input.length === 0}
+              className="h-8 w-8 sm:h-10 sm:w-10"
             >
-              <ArrowRight size={20} />
+              <ArrowRight size={18} className="sm:w-5 sm:h-5" />
             </Button>
           </div>
         </div>

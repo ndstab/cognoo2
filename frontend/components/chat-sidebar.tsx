@@ -58,12 +58,13 @@ export function ChatSidebar() {
   }
 
   return (
-    <div className="fixed left-0 top-0 h-full bg-background border-r z-20 w-16">
+    <div className="fixed left-0 top-0 h-full bg-background z-40">
       <div className="flex flex-col items-center p-2 space-y-4 h-full">
         <Button
           variant="ghost"
           size="icon"
           onClick={handleHistoryClick}
+          className="h-10 w-10 sm:h-12 sm:w-12"
         >
           <History size={20} />
         </Button>
@@ -71,6 +72,7 @@ export function ChatSidebar() {
           variant="ghost"
           size="icon"
           onClick={handleProfileClick}
+          className="h-10 w-10 sm:h-12 sm:w-12"
         >
           <User size={20} />
         </Button>
@@ -78,8 +80,8 @@ export function ChatSidebar() {
 
       <div
         className={cn(
-          'fixed left-16 top-0 h-full bg-background border-r transition-all duration-300 z-20',
-          historyOpen || userProfileOpen ? 'w-80' : 'w-0 border-0'
+          'fixed left-16 top-0 h-full bg-background transition-all duration-300 z-40',
+          historyOpen || userProfileOpen ? 'w-[280px] sm:w-80' : 'w-0'
         )}
       >
         {userProfileOpen && <UserProfile />}

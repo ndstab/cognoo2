@@ -4,7 +4,6 @@ import { AI } from './action'
 import './globals.css'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
-import Header from '@/components/header'
 import { Providers } from './providers'
 import { Analytics } from '@vercel/analytics/next'
 
@@ -48,10 +47,7 @@ export default function RootLayout({
             forcedTheme="dark"
             disableTransitionOnChange
           >
-            <Header />
-            <main className="pt-10">
               <AI>{children}</AI>
-            </main>
           </ThemeProvider>
         </Providers>
         <Analytics />
