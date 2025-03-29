@@ -10,7 +10,6 @@ import { Section } from '@/components/section'
 import { createOpenAI } from '@ai-sdk/openai'
 import { SearchResults } from '@/components/search-results'
 import { BotMessage } from '@/components/message'
-import Exa from 'exa-js'
 
 export async function researcher(
   uiStream: ReturnType<typeof createStreamableUI>,
@@ -22,8 +21,6 @@ export async function researcher(
     apiKey: process.env.OPENAI_API_KEY, // optional API key, default to env property OPENAI_API_KEY
     organization: '' // optional organization
   })
-
-  const searchAPI: 'tavily' | 'exa' = 'tavily'
 
   let fullResponse = ''
   const answerSection = (
@@ -44,7 +41,7 @@ export async function researcher(
       messages,
       tools: {
         search: {
-          description: 'Search the web for information',
+          description: 'Search the web for information using Tavily',
           parameters: searchSchema,
           execute: async ({
             query,
@@ -56,10 +53,7 @@ export async function researcher(
             search_depth: 'basic' | 'advanced'
           }) => {
             try {
-              const searchResult =
-                searchAPI === 'tavily'
-                  ? await tavilySearch(query, max_results, search_depth)
-                  : await exaSearch(query)
+              const searchResult = await tavilySearch(query, max_results, search_depth)
 
               uiStream.update(
                 <Section title="Sources">
@@ -87,9 +81,7 @@ export async function researcher(
         switch (delta.type) {
           case 'text-delta':
             if (delta.textDelta) {
-              // If the first text delata is available, add a ui section
               if (fullResponse.length === 0 && delta.textDelta.length > 0) {
-                // Update the UI
                 uiStream.update(answerSection)
               }
 
@@ -105,7 +97,7 @@ export async function researcher(
             break
           case 'error':
             console.error('Stream error:', delta)
-            fullResponse += `\nError occurred while executing the tool`
+            fullResponse += `\nError occurred during stream processing`
             break
         }
       }
@@ -120,13 +112,14 @@ export async function researcher(
     })
 
     if (toolResponses.length > 0) {
-      // Add tool responses to the messages
       messages.push({ role: 'tool', content: toolResponses })
     }
 
     return { result, fullResponse }
   } catch (error) {
     console.error('Researcher error:', error)
+    uiStream.update(<div className="text-red-500">An error occurred during research.</div>)
+    streamTexty.done()
     throw error
   }
 }
@@ -153,18 +146,12 @@ async function tavilySearch(
   })
 
   if (!response.ok) {
-    throw new Error(`Error: ${response.status}`)
+    console.error(`Tavily API Error: ${response.status} ${response.statusText}`);
+    const errorBody = await response.text();
+    console.error(`Tavily Error Body: ${errorBody}`);
+    throw new Error(`Tavily search failed with status: ${response.status}`)
   }
 
   const data = await response.json()
   return data
-}
-
-async function exaSearch(query: string, maxResults: number = 2): Promise<any> {
-  const apiKey = process.env.EXA_API_KEY
-  const exa = new Exa(apiKey)
-  return exa.searchAndContents(query, {
-    highlights: true,
-    numResults: maxResults
-  })
 }

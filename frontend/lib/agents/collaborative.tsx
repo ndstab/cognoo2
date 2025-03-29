@@ -3,11 +3,11 @@ import {
   CoreMessage,
   ToolCallPart,
   ToolResultPart,
-  experimental_streamText
+  streamText
 } from 'ai'
 import { searchSchema } from '@/lib/schema/search'
 import { Section } from '@/components/section'
-import { OpenAI } from '@ai-sdk/openai'
+import { createOpenAI } from '@ai-sdk/openai'
 import { ToolBadge } from '@/components/tool-badge'
 import { SearchSkeleton } from '@/components/search-skeleton'
 import { SearchResults } from '@/components/search-results'
@@ -18,11 +18,11 @@ import { querySuggestor } from './query-suggestor'
 
 export async function collaborativeAgent(
   uiStream: ReturnType<typeof createStreamableUI>,
-  streamText: ReturnType<typeof createStreamableValue<string>>,
+  streamTexty: ReturnType<typeof createStreamableValue<string>>,
   messages: CoreMessage[],
   roomId: string
 ) {
-  const openai = new OpenAI({
+  const openai = createOpenAI({
     baseUrl: process.env.OPENAI_API_BASE,
     apiKey: process.env.OPENAI_API_KEY,
     organization: ''
@@ -31,7 +31,7 @@ export async function collaborativeAgent(
   let fullResponse = ''
   const answerSection = (
     <Section title="Group Response">
-      <BotMessage content={streamText.value} />
+      <BotMessage content={streamTexty.value} />
     </Section>
   )
 
@@ -42,7 +42,7 @@ export async function collaborativeAgent(
     return { needsInquiry: true, inquiry }
   }
 
-  const result = await experimental_streamText({
+  const result = await streamText({
     model: openai.chat('gpt-4o'),
     maxTokens: 1000,
     system: `As a collaborative AI assistant in a group chat, provide engaging and informative responses that encourage discussion.
@@ -121,7 +121,7 @@ export async function collaborativeAgent(
           }
 
           fullResponse += delta.textDelta
-          streamText.update(fullResponse)
+          streamTexty.update(fullResponse)
         }
         break
       case 'tool-call':
