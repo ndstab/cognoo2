@@ -3,23 +3,21 @@ import {
   CoreMessage,
   ToolCallPart,
   ToolResultPart,
-  experimental_streamText
+  streamText
 } from 'ai'
 import { searchSchema } from '@/lib/schema/search'
 import { Section } from '@/components/section'
-import { OpenAI } from '@ai-sdk/openai'
-import { ToolBadge } from '@/components/tool-badge'
-import { SearchSkeleton } from '@/components/search-skeleton'
+import { createOpenAI } from '@ai-sdk/openai'
 import { SearchResults } from '@/components/search-results'
 import { BotMessage } from '@/components/message'
 import Exa from 'exa-js'
 
 export async function researcher(
   uiStream: ReturnType<typeof createStreamableUI>,
-  streamText: ReturnType<typeof createStreamableValue<string>>,
+  streamTexty: ReturnType<typeof createStreamableValue<string>>,
   messages: CoreMessage[]
 ) {
-  const openai = new OpenAI({
+  const openai = createOpenAI({
     baseUrl: process.env.OPENAI_API_BASE, // optional base URL for proxies etc.
     apiKey: process.env.OPENAI_API_KEY, // optional API key, default to env property OPENAI_API_KEY
     organization: '' // optional organization
@@ -30,12 +28,12 @@ export async function researcher(
   let fullResponse = ''
   const answerSection = (
     <Section title="Answer">
-      <BotMessage content={streamText.value} />
+      <BotMessage content={streamTexty.value} />
     </Section>
   )
 
   try {
-    const result = await experimental_streamText({
+    const result = await streamText({
       model: openai.chat('gpt-4o-mini'),
       maxTokens: 1000,
       system: `As a concise search expert, provide brief but accurate responses using minimal web sources.
@@ -96,7 +94,7 @@ export async function researcher(
               }
 
               fullResponse += delta.textDelta
-              streamText.update(fullResponse)
+              streamTexty.update(fullResponse)
             }
             break
           case 'tool-call':
