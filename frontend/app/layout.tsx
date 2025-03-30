@@ -14,7 +14,7 @@ const fontSans = FontSans({
 
 const title = 'Cogni'
 const description =
-  'An AI-powered query engine with a generative UI.'
+  'Your intelligent AI companion, pioneering the web of agents to simplify life and supercharge efficiency.'
 
 export const metadata: Metadata = {
   title,
