@@ -98,7 +98,7 @@ export default function Page() {
             <Button 
               variant="outline" 
               onClick={() => router.push('/collaborate')}
-              className="rounded-full w-10 h-10 p-0 flex items-center justify-center 
+              className="rounded-full w-14 h-14 p-0 flex items-center justify-center 
                          sm:w-auto sm:h-auto sm:rounded-md sm:px-4 sm:py-2 
                          bg-gradient-to-r from-green-300 to-teal-400 border-none 
                          hover:from-green-400 hover:to-teal-500 transition-all duration-300 

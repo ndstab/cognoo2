@@ -191,7 +191,7 @@ const CollaboratePage: React.FC = () => {
             <div className="space-y-3">
               <Input
                 type="text"
-                placeholder="Room ID"
+                placeholder="Enter a new Room ID or use your friend's Room ID"
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
                 className="w-full"

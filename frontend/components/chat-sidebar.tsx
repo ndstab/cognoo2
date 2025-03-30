@@ -58,7 +58,7 @@ export function ChatSidebar() {
   }
 
   return (
-    <div className="fixed left-0 top-0 h-full bg-background z-40">
+    <div className="fixed left-0 top-0 h-full z-40">
       <div className="flex flex-col items-center p-2 space-y-4 h-full">
         <Button
           variant="ghost"
