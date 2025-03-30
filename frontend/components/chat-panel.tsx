@@ -243,7 +243,7 @@ export function ChatPanel() {
             ref={inputRef}
             type="text"
             name="input"
-            placeholder="Ask a question..."
+            placeholder="Ask Cogni anything..."
             value={input}
             className="pl-4 pr-24 h-12 rounded-full bg-muted text-sm sm:text-base"
             onChange={e => {
