@@ -49,9 +49,14 @@ export default function Page() {
         return
       }
       
-      // No valid authentication found, redirect to auth page
-      console.log('No authentication found, redirecting to auth page')
-      router.replace('/auth')
+      // Temporarily disabled redirect to auth page
+      // console.log('No authentication found, redirecting to auth page')
+      // router.replace('/auth')
+      
+      // Instead, just set as authenticated without redirect
+      console.log('No authentication found, but redirect disabled')
+      setIsAuthenticated(true)
+      
     } catch (err) {
       console.error("Authentication error:", err)
       setError("Failed to verify authentication")
